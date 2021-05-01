@@ -1,3 +1,4 @@
+from core import *
 
 class PartitionAxis:
     """one property used to partition a group"""
@@ -68,7 +69,7 @@ class SharesMap(SharesGetter):
     def get_shares(self, context: dict[PartitionAxis, str]) -> dict[str, float]:
         share_result = {}
         for v,s in self.shares:
-            if isinstance(s, float) or isinstance(s, int)
+            if isinstance(s, float) or isinstance(s, int):
                 share_result[v] = s
             elif  isinstance(s, ShareGetter):
                 share_result[v] = s.get_share(self.context, self.axis, v)

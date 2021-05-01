@@ -129,20 +129,11 @@ property_block:
   ;
 
 shares: 
-  share_list NEWLINE                      #shares_as_list
+  expression_list NEWLINE                 #shares_as_list
   | share_map_block                       #shares_as_map
   | cond_shares_block                     #shares_as_cond 
   ;
           
-share_list: 
-  OPEN_BRACK share_enum CLOSE_BRACK 
-  ;
-
-share_enum: 
-  expression                              #share_enum_item
-  | share_enum ',' expression             #share_enum_rep 
-  ;
-            
 share_map_block: 
   NEWLINE INDENT share_map DEDENT 
   ;
@@ -178,13 +169,17 @@ pexpressions:
   ;
 
 condition: 
-  axis=NAME '=' value=expression          #cond_as_eq
-  | axis=NAME IN values                   #cond_as_in
+  NAME '=' expression                     #cond_as_eq
+  | NAME IN values                        #cond_as_in
   | expression                            #cond_as_expr
   ;
              
 values: 
   OPEN_BRACK vals+=NAME (',' vals+=NAME)* CLOSE_BRACK 
+  ;
+
+expression_list: 
+  OPEN_BRACK exprs+=expression (',' exprs+=expression)* CLOSE_BRACK 
   ;
 
 progressions_block: 
@@ -211,7 +206,7 @@ progression_component:
   | restr+=restriction+ 
     (ELSE ':' progression_block)?         #prog_restrictions
   | progression_after                     #prog_after
-  | progression_action                    #prog_after
+  | progression_action                    #prog_action
   ;
   
 restriction:

@@ -69,21 +69,6 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#share_list.
-    def visitShare_list(self, ctx:DynamodParser.Share_listContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by DynamodParser#share_enum_rep.
-    def visitShare_enum_rep(self, ctx:DynamodParser.Share_enum_repContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by DynamodParser#share_enum_item.
-    def visitShare_enum_item(self, ctx:DynamodParser.Share_enum_itemContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by DynamodParser#share_map_block.
     def visitShare_map_block(self, ctx:DynamodParser.Share_map_blockContext):
         return self.visitChildren(ctx)
@@ -159,6 +144,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#expression_list.
+    def visitExpression_list(self, ctx:DynamodParser.Expression_listContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#progressions_block.
     def visitProgressions_block(self, ctx:DynamodParser.Progressions_blockContext):
         return self.visitChildren(ctx)
@@ -201,6 +191,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#prog_after.
     def visitProg_after(self, ctx:DynamodParser.Prog_afterContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#prog_action.
+    def visitProg_action(self, ctx:DynamodParser.Prog_actionContext):
         return self.visitChildren(ctx)
 
 
