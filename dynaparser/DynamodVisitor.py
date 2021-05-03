@@ -124,6 +124,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#cond_as_axval.
+    def visitCond_as_axval(self, ctx:DynamodParser.Cond_as_axvalContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#cond_as_eq.
     def visitCond_as_eq(self, ctx:DynamodParser.Cond_as_eqContext):
         return self.visitChildren(ctx)
@@ -259,8 +264,8 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#conj_inv.
-    def visitConj_inv(self, ctx:DynamodParser.Conj_invContext):
+    # Visit a parse tree produced by DynamodParser#conj_comp.
+    def visitConj_comp(self, ctx:DynamodParser.Conj_compContext):
         return self.visitChildren(ctx)
 
 
@@ -356,6 +361,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#primary_func.
     def visitPrimary_func(self, ctx:DynamodParser.Primary_funcContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#primary_method.
+    def visitPrimary_method(self, ctx:DynamodParser.Primary_methodContext):
         return self.visitChildren(ctx)
 
 

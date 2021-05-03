@@ -169,7 +169,8 @@ pexpressions:
   ;
 
 condition: 
-  NAME '=' expression                     #cond_as_eq
+  axis=NAME '=' value=NAME                #cond_as_axval
+  | NAME '=' expression                   #cond_as_eq
   | NAME IN values                        #cond_as_in
   | expression                            #cond_as_expr
   ;
@@ -244,7 +245,7 @@ disjunction:
 
 conjunction:
   conds+=comparison (AND conds+=comparison)+     #conj_ands
-  | comparison                            #conj_inv
+  | comparison                            #conj_comp
   ;
   
 comparison:
@@ -279,7 +280,8 @@ factor:
 
 primary:
   primary '.' NAME                        #primary_dot
-  | primary '(' arguments? ')'            #primary_func
+  | NAME '(' arguments? ')'               #primary_func
+  | primary '.' NAME '(' arguments? ')'   #primary_method
   | NAME                                  #primary_name
   | '$' NAME                              #primary_param
   | '$' '$' NAME                          #primary_system

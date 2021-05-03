@@ -14,6 +14,7 @@ properties:
       for age=age16_29: [6%, 12%, %%]
       #...
       for age=age80_100: [80%, 10%, %%]
+      otherwise: [60%, 30%, %%]
   #
   state:
     values: [susceptible, exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, dead, recovered]
@@ -34,6 +35,7 @@ properties:
         for risk=low: 0.3%
         for risk=moderate: 0.3%
         for risk=high: 0.75%
+      dead: 0
   #
   quarantined:
     values: [yes, no]
@@ -47,6 +49,9 @@ properties:
       for state=hospitalized:
         yes: 98%
         no: 2%
+      otherwise:
+        yes: 0
+        no: %%
 #
 # progressions describe time dependent automatic change of properties
 # the progression acts on certain compartments and/or with certain probabilities

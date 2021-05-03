@@ -1,6 +1,8 @@
 from collections import namedtuple
 from recordtype import recordtype
 
+def is_num (expr):
+    return isinstance(expr, int) or isinstance(expr, float)
 
 class ConfigurationError(Exception):
     def __init__(self, message, ctx=None, line=None, column=None):
@@ -23,6 +25,7 @@ class ConfigurationError(Exception):
 
 DynamodDesc = recordtype('DynamodDesc', ['basis', 'params', 'properties', 'progressions'], default=None)
 DynamodProp = recordtype('DynamodProp', ['values', 'shares'])
+DynamodAxisValue  = recordtype('DynamodAxisValue', ['ctx', 'axis', 'value'])
 DynamodElseList = recordtype('DynamodElseList', ['ctx', 'list', 'otherwise'])
 DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'expression'])
 DynamodAfter = recordtype('DynamodAfter', ['distrib', 'args', 'block'])
