@@ -125,7 +125,7 @@ progression:
     # susceptible people become exposed
     for S as state=susceptible:         # restrict population and give it a name
       for SA as S by age:               # loop over all age categories
-        var prob = 0                    # create and assign numeric variable
+        var tprob = 0                    # create and assign numeric variable
         for PA as $$Population with age=SA.age:
           var age_prob = $$User.contact_matrix(SA.age, PA.age)   \
             * (0.231 * PA.share(PA with state=asymptomatic)     \
@@ -133,8 +133,8 @@ progression:
                + PA.share(PA with state=symptomatic))           \
             * (0.05 * PA.share(PA with quarantined=yes)         \
                + PA.share(PA with quarantined=no))
-          var prob = prob + age_prob
-        for prob:
+          tprob = tprob + age_prob
+        for tprob:
           set SA.state=exposed
           set SA.quarantined=
             yes: 20%

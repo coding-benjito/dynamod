@@ -199,8 +199,13 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#restriction.
-    def visitRestriction(self, ctx:DynamodParser.RestrictionContext):
+    # Visit a parse tree produced by DynamodParser#restr_for.
+    def visitRestr_for(self, ctx:DynamodParser.Restr_forContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#restr_if.
+    def visitRestr_if(self, ctx:DynamodParser.Restr_ifContext):
         return self.visitChildren(ctx)
 
 
@@ -229,28 +234,73 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#exp_by.
-    def visitExp_by(self, ctx:DynamodParser.Exp_byContext):
+    # Visit a parse tree produced by DynamodParser#expr_ifelse.
+    def visitExpr_ifelse(self, ctx:DynamodParser.Expr_ifelseContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#exp_with.
-    def visitExp_with(self, ctx:DynamodParser.Exp_withContext):
+    # Visit a parse tree produced by DynamodParser#expr_value.
+    def visitExpr_value(self, ctx:DynamodParser.Expr_valueContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#exp_term.
-    def visitExp_term(self, ctx:DynamodParser.Exp_termContext):
+    # Visit a parse tree produced by DynamodParser#disj_ors.
+    def visitDisj_ors(self, ctx:DynamodParser.Disj_orsContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#exp_sub.
-    def visitExp_sub(self, ctx:DynamodParser.Exp_subContext):
+    # Visit a parse tree produced by DynamodParser#disj_one.
+    def visitDisj_one(self, ctx:DynamodParser.Disj_oneContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#exp_add.
-    def visitExp_add(self, ctx:DynamodParser.Exp_addContext):
+    # Visit a parse tree produced by DynamodParser#conj_ands.
+    def visitConj_ands(self, ctx:DynamodParser.Conj_andsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#conj_inv.
+    def visitConj_inv(self, ctx:DynamodParser.Conj_invContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#comp_two_ops.
+    def visitComp_two_ops(self, ctx:DynamodParser.Comp_two_opsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#comp_not.
+    def visitComp_not(self, ctx:DynamodParser.Comp_notContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#comp_interval.
+    def visitComp_interval(self, ctx:DynamodParser.Comp_intervalContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#expval_sub.
+    def visitExpval_sub(self, ctx:DynamodParser.Expval_subContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#expval_add.
+    def visitExpval_add(self, ctx:DynamodParser.Expval_addContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#expval_term.
+    def visitExpval_term(self, ctx:DynamodParser.Expval_termContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#expval_with.
+    def visitExpval_with(self, ctx:DynamodParser.Expval_withContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#expval_by.
+    def visitExpval_by(self, ctx:DynamodParser.Expval_byContext):
         return self.visitChildren(ctx)
 
 

@@ -3,6 +3,7 @@ from dynaparser.DynamodLexer import DynamodLexer
 from dynaparser.DynamodParser import DynamodParser
 from DynamodBuilder import DynamodBuilder
 from dynamod import parse_helper
+from dynamod.dynaprop import *
 
 input = FileStream("test.mod")
 lexer = DynamodLexer(input)
@@ -11,4 +12,5 @@ parser = DynamodParser(stream)
 tree = parser.description()
 builder = DynamodBuilder(None)
 desc = builder.visitDescription(tree)
-print(parse_helper.treeDesc(tree, parser))
+model = DynaModel(desc)
+print(model)

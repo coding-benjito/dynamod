@@ -144,7 +144,7 @@ share_map:
   ;
                  
 cond_shares_block: 
-  NEWLINE INDENT cond_shares (ELSE ':' shares)? DEDENT 
+  NEWLINE INDENT cond_shares (OTHERWISE ':' shares)? DEDENT 
   ;
 
 cond_shares: 
@@ -159,7 +159,7 @@ pexpression:
   ;
 
 pexpression_block: 
-  NEWLINE INDENT pexpressions (ELSE ':' pexpression)? DEDENT 
+  NEWLINE INDENT pexpressions (OTHERWISE ':' pexpression)? DEDENT 
   ;
 
 pexpressions: 
@@ -204,13 +204,14 @@ progression:
 progression_component:
   variable_definition                     #prog_vardef
   | restr+=restriction+ 
-    (ELSE ':' progression_block)?         #prog_restrictions
+    (OTHERWISE ':' progression_block)?    #prog_restrictions
   | progression_after                     #prog_after
   | progression_action                    #prog_action
   ;
   
 restriction:
-  FOR (NAME AS)? condition ':' progression_block     
+  FOR (NAME AS)? condition ':' progression_block  #restr_for   
+  | IF disjunction ':' progression_block  #restr_if 
   ;
   
 progression_after:
@@ -228,15 +229,36 @@ pstate:
   
 
 variable_definition:
-  VAR NAME '=' pexpression
+  VAR? NAME '=' pexpression
   ;
   
 expression:
-  expression '+' term                     #exp_add
-  | expression '-' term                   #exp_sub
-  | expression WITH condition             #exp_with
-  | expression BY NAME                    #exp_by
-  | term                                  #exp_term
+  expval IF disjunction ELSE expression   #expr_ifelse
+  | expval                                #expr_value
+  ;
+  
+disjunction:
+  conds+=conjunction (OR conds+=conjunction )+ #disj_ors
+  | conjunction                           #disj_one
+  ;
+
+conjunction:
+  conds+=comparison (AND conds+=comparison)+     #conj_ands
+  | comparison                            #conj_inv
+  ;
+  
+comparison:
+  op1=expval op=(LT|LE|GT|GE|EQ|NE) op2=expval #comp_two_ops
+  | NOT comparison                        #comp_not
+  | expval IN OPEN_BRACK op1=expression DOTDOT op2=expression CLOSE_BRACK   #comp_interval
+  ;
+      
+expval:
+  expval '+' term                         #expval_add
+  | expval '-' term                       #expval_sub
+  | expval WITH condition                 #expval_with
+  | expval BY NAME                        #expval_by
+  | term                                  #expval_term
   ;
   
 term:
@@ -278,13 +300,26 @@ VALUES : 'values';
 SHARES : 'shares';
 FOR : 'for';
 IN : 'in';
-ELSE : 'otherwise';
+OTHERWISE : 'otherwise';
 VAR : 'var';
 SET : 'set';
 AS : 'as';
 BY : 'by';
 AFTER : 'after';
 WITH : 'with';
+IF : 'if';
+ELSE : 'else';
+AND : 'and';
+OR: 'or';
+NOT : 'not';
+LT : '<';
+LE : '<=';
+GT : '>';
+GE : '>=';
+NE : '!=';
+EQ : 'EQ';
+DOTDOT : '..';
+
 
 NEWLINE
  : ( {self.atStartOfInput()}?   SPACES

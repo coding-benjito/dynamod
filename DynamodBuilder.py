@@ -63,13 +63,6 @@ class DynamodBuilder(DynamodVisitor):
     # Visit a parse tree produced by DynamodParser#property_block.
     def visitProperty_block(self, ctx:DynamodParser.Property_blockContext):
         prop = DynamodProp(self.visit(ctx.values()), self.visit(ctx.shares()))
-        if isinstance(prop.shares, list):
-            if len(prop.shares) != len(prop.values):
-                raise ConfigurationError("share list has wrong number of entries", ctx.shares())
-            map = {}
-            for v,s in zip(prop.values, prop.shares):
-                map[v] = s
-            prop.shares = map
         return prop
 
     # Visit a parse tree produced by DynamodParser#shares_as_list.
@@ -101,7 +94,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#cond_shares_block.
     def visitCond_shares_block(self, ctx:DynamodParser.Cond_shares_blockContext):
-        return DynamodElseList(self.visit(ctx.cond_shares()), self.visit(ctx.shares()))
+        return DynamodElseList(ctx, self.visit(ctx.cond_shares()), self.visit(ctx.shares()))
 
     # Visit a parse tree produced by DynamodParser#cond_shares_item.
     def visitCond_shares_item(self, ctx:DynamodParser.Cond_shares_itemContext):
@@ -124,7 +117,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#pexpression_block.
     def visitPexpression_block(self, ctx:DynamodParser.Pexpression_blockContext):
-        return DynamodElseList(self.visit(ctx.pexpressions()), self.visit(ctx.pexpression()))
+        return DynamodElseList(ctx, self.visit(ctx.pexpressions()), self.visit(ctx.pexpression()))
 
     # Visit a parse tree produced by DynamodParser#pexpressions_item.
     def visitPexpressions_item(self, ctx:DynamodParser.Pexpressions_itemContext):
@@ -179,7 +172,7 @@ class DynamodBuilder(DynamodVisitor):
     # Visit a parse tree produced by DynamodParser#progression_rep.
     def visitProgression_rep(self, ctx:DynamodParser.Progression_repContext):
         list = self.visit(ctx.progression())
-        list.extend(self.visit(ctx.progression_component()))
+        list.append(self.visit(ctx.progression_component()))
         return list
 
     # Visit a parse tree produced by DynamodParser#progression_item.
@@ -195,7 +188,7 @@ class DynamodBuilder(DynamodVisitor):
         list = []
         for r in ctx.restr:
             list.append(self.visit(r))
-        return DynamodElseList(list, self.visit(ctx.progression_block()))
+        return DynamodElseList(ctx, list, self.visit(ctx.progression_block()))
 
     # Visit a parse tree produced by DynamodParser#prog_after.
     def visitProg_after(self, ctx:DynamodParser.Prog_afterContext):
@@ -205,12 +198,17 @@ class DynamodBuilder(DynamodVisitor):
     def visitProg_action(self, ctx:DynamodParser.Prog_actionContext):
         return self.visit(ctx.progression_action())
 
-    # Visit a parse tree produced by DynamodParser#restriction.
-    def visitRestriction(self, ctx:DynamodParser.RestrictionContext):
-        res = DynamodRestriction(self.visit(ctx.condition()), self.visit(ctx.progression_block()))
+    # Visit a parse tree produced by DynamodParser#restr_for.
+    def visitRestr_for(self, ctx:DynamodParser.Restr_forContext):
+        res = DynamodRestriction(ctx, 'for', self.visit(ctx.condition()), self.visit(ctx.progression_block()))
         if ctx.NAME() is not None:
             res.alias = ctx.NAME().getText()
         return res
+
+    # Visit a parse tree produced by DynamodParser#restr_if.
+    def visitRestr_if(self, ctx:DynamodParser.Restr_ifContext):
+        res = DynamodRestriction(ctx, 'if', self.visit(ctx.condition()), self.visit(ctx.progression_block()))
+
 
     # Visit a parse tree produced by DynamodParser#progression_after.
     def visitProgression_after(self, ctx:DynamodParser.Progression_afterContext):
@@ -218,7 +216,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#progression_action.
     def visitProgression_action(self, ctx:DynamodParser.Progression_actionContext):
-        return DynamodAction(self.visit(ctx.axis), self.visit(ctx.pstate()))
+        return DynamodAction(ctx, self.visit(ctx.axis), self.visit(ctx.pstate()))
 
     # Visit a parse tree produced by DynamodParser#pstate_name.
     def visitPstate_name(self, ctx:DynamodParser.Pstate_nameContext):
@@ -230,32 +228,73 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#variable_definition.
     def visitVariable_definition(self, ctx:DynamodParser.Variable_definitionContext):
-        return DynamodVarDef(ctx.NAME().getText(), self.visit(ctx.pexpression()))
+        return DynamodVarDef(ctx, ctx.NAME().getText(), self.visit(ctx.pexpression()))
 
+    # Visit a parse tree produced by DynamodParser#expr_ifelse.
+    def visitExpr_ifelse(self, ctx:DynamodParser.Expr_ifelseContext):
+        return TernaryOp(ctx, self.visit(ctx.disjunction()), self.visit(ctx.expval()), self.visit(ctx.expression()))
+
+    # Visit a parse tree produced by DynamodParser#expr_value.
+    def visitExpr_value(self, ctx:DynamodParser.Expr_valueContext):
+        return self.visit(ctx.expval())
+
+    # Visit a parse tree produced by DynamodParser#disj_ors.
+    def visitDisj_ors(self, ctx:DynamodParser.Disj_orsContext):
+        list = []
+        for c in ctx.conds:
+            list.append (self.visit(c))
+        return UnaryOp(ctx, 'or', list)
+
+    # Visit a parse tree produced by DynamodParser#disj_one.
+    def visitDisj_one(self, ctx:DynamodParser.Disj_oneContext):
+        return self.visit(ctx.conjunction())
+
+    # Visit a parse tree produced by DynamodParser#conj_ands.
+    def visitConj_ands(self, ctx:DynamodParser.Conj_andsContext):
+        list = []
+        for c in ctx.conds:
+            list.append (self.visit(c))
+        return UnaryOp(ctx, 'and', list)
+
+    # Visit a parse tree produced by DynamodParser#conj_inv.
+    def visitConj_inv(self, ctx:DynamodParser.Conj_invContext):
+        return self.visit(ctx.inversion())
+
+    # Visit a parse tree produced by DynamodParser#comp_two_ops.
+    def visitComp_two_ops(self, ctx:DynamodParser.Comp_two_opsContext):
+        return BinaryOp(ctx, ctx.op.getText(), self.visit(ctx.op1), self.visit(ctx.op2))
+
+    # Visit a parse tree produced by DynamodParser#comp_not.
+    def visitComp_not(self, ctx:DynamodParser.Comp_notContext):
+        return UnaryOp(ctx, 'not', self.visit(ctx.comparison()))
+
+    # Visit a parse tree produced by DynamodParser#comp_interval.
+    def visitComp_interval(self, ctx:DynamodParser.Comp_intervalContext):
+        return TernaryOp(ctx, 'between', self.visit(ctx.expval()), self.visit(ctx.op1), self.visit(ctx.op2))
 
     # Visit a parse tree produced by DynamodParser#exp_by.
-    def visitExp_by(self, ctx:DynamodParser.Exp_byContext):
-        return BinaryOp('by', self.visit(ctx.expression()), ctx.NAME().getText())
+    def visitExpval_by(self, ctx:DynamodParser.Expval_byContext):
+        return BinaryOp(ctx, 'by', self.visit(ctx.expval()), ctx.NAME().getText())
 
     # Visit a parse tree produced by DynamodParser#exp_with.
-    def visitExp_with(self, ctx:DynamodParser.Exp_withContext):
-        return BinaryOp('with', self.visit(ctx.expression()), self.visit(ctx.condition()))
+    def visitExpval_with(self, ctx:DynamodParser.Expval_withContext):
+        return BinaryOp(ctx, 'with', self.visit(ctx.expval()), self.visit(ctx.condition()))
 
     # Visit a parse tree produced by DynamodParser#exp_term.
-    def visitExp_term(self, ctx:DynamodParser.Exp_termContext):
+    def visitExpval_term(self, ctx:DynamodParser.Expval_termContext):
         return self.visit(ctx.term())
 
     # Visit a parse tree produced by DynamodParser#exp_sub.
-    def visitExp_sub(self, ctx:DynamodParser.Exp_subContext):
-        return BinaryOp('-', self.visit(ctx.expression()), self.visit(ctx.term()))
+    def visitExpval_sub(self, ctx:DynamodParser.Expval_subContext):
+        return BinaryOp(ctx, '-', self.visit(ctx.expval()), self.visit(ctx.term()))
 
     # Visit a parse tree produced by DynamodParser#exp_add.
-    def visitExp_add(self, ctx:DynamodParser.Exp_addContext):
-        return BinaryOp('-', self.visit(ctx.expression()), self.visit(ctx.term()))
+    def visitExpval_add(self, ctx:DynamodParser.Expval_addContext):
+        return BinaryOp(ctx, '+', self.visit(ctx.expval()), self.visit(ctx.term()))
 
     # Visit a parse tree produced by DynamodParser#term_mul.
     def visitTerm_mul(self, ctx:DynamodParser.Term_mulContext):
-        return BinaryOp('*', self.visit(ctx.term()), self.visit(ctx.factor()))
+        return BinaryOp(ctx, '*', self.visit(ctx.term()), self.visit(ctx.factor()))
 
     # Visit a parse tree produced by DynamodParser#term_factor.
     def visitTerm_factor(self, ctx:DynamodParser.Term_factorContext):
@@ -263,7 +302,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#term_div.
     def visitTerm_div(self, ctx:DynamodParser.Term_divContext):
-        return BinaryOp('/', self.visit(ctx.term()), self.visit(ctx.factor()))
+        return BinaryOp(ctx, '/', self.visit(ctx.term()), self.visit(ctx.factor()))
 
     # Visit a parse tree produced by DynamodParser#factor_pos.
     def visitFactor_pos(self, ctx:DynamodParser.Factor_posContext):
@@ -271,7 +310,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#factor_neg.
     def visitFactor_neg(self, ctx:DynamodParser.Factor_negContext):
-        return UnaryOp('-', self.visit(ctx.factor()))
+        return UnaryOp(ctx, '-', self.visit(ctx.factor()))
 
     # Visit a parse tree produced by DynamodParser#factor_primary.
     def visitFactor_primary(self, ctx:DynamodParser.Factor_primaryContext):
@@ -301,15 +340,15 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#primary_func.
     def visitPrimary_func(self, ctx:DynamodParser.Primary_funcContext):
-        return BinaryOp('func', self.visit(ctx.primary()), self.visit(ctx.arguments()))
+        return BinaryOp(ctx, 'func', self.visit(ctx.primary()), self.visit(ctx.arguments()))
 
     # Visit a parse tree produced by DynamodParser#primary_dot.
     def visitPrimary_dot(self, ctx:DynamodParser.Primary_dotContext):
-        return BinaryOp('dot', self.visit(ctx.primary()), ctx.NAME().getText())
+        return BinaryOp(ctx, 'dot', self.visit(ctx.primary()), ctx.NAME().getText())
 
     # Visit a parse tree produced by DynamodParser#primary_system.
     def visitPrimary_system(self, ctx:DynamodParser.Primary_systemContext):
-        return UnaryOp('syspar', ctx.NAME().getText())
+        return UnaryOp(ctx, 'syspar', ctx.NAME().getText())
 
     # Visit a parse tree produced by DynamodParser#primary_name.
     def visitPrimary_name(self, ctx:DynamodParser.Primary_nameContext):
@@ -317,7 +356,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#primary_param.
     def visitPrimary_param(self, ctx:DynamodParser.Primary_paramContext):
-        return UnaryOp('param', ctx.NAME().getText())
+        return UnaryOp(ctx, 'param', ctx.NAME().getText())
 
     # Visit a parse tree produced by DynamodParser#arguments.
     def visitArguments(self, ctx:DynamodParser.ArgumentsContext):

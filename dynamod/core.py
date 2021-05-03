@@ -23,13 +23,15 @@ class ConfigurationError(Exception):
 
 DynamodDesc = recordtype('DynamodDesc', ['basis', 'params', 'properties', 'progressions'], default=None)
 DynamodProp = recordtype('DynamodProp', ['values', 'shares'])
-DynamodElseList = recordtype('DynamodElseList', ['list', 'otherwise'])
-DynamodVarDef = recordtype('DynamodVarDef', ['varname', 'expression'])
+DynamodElseList = recordtype('DynamodElseList', ['ctx', 'list', 'otherwise'])
+DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'expression'])
 DynamodAfter = recordtype('DynamodAfter', ['distrib', 'args', 'block'])
-DynamodAction = recordtype('DynamodAction', ['axis', 'state'])
-DynamodRestriction = recordtype('DynamodRestriction', ['cond', 'block', ('alias',None)])
-BinaryOp = recordtype('DualOp', ['opcode', 'op1', 'op2'])
-UnaryOp = recordtype('UnaryOp', ['opcode', 'op'])
+DynamodAction = recordtype('DynamodAction', ['ctx', 'axis', 'state'])
+DynamodRestriction = recordtype('DynamodRestriction', ['ctx', 'type', 'cond', 'block', ('alias',None)])
+TernaryOp = recordtype('TernaryOp', ['ctx', 'opcode', 'op1', 'op2', 'op3'])
+BinaryOp = recordtype('DualOp', ['ctx', 'opcode', 'op1', 'op2'])
+UnaryOp = recordtype('UnaryOp', ['ctx', 'opcode', 'op'])
+
 
 class ShareSystem:
     def share_of (self, axval:str, cube):
