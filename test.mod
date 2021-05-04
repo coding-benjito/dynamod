@@ -1,24 +1,37 @@
-basis: 'c:/develop/dynamod/basis.mod'
+include: 'c:/develop/dynamod/basis.mod'
+
 parameters:
-  $pi = 3.14
-properties:
-  #
+###########
+  asymptomatic_share = 18.4%
+  f_asymptomatic = 0.231         #factor for infectiousness relative to symptomatic
+  f_presymptomatic = 0.692       #factor for infectiousness relative to symptomatic
+  factor_when_quarantined = 0.05 #factor for infectiousness relative to unquarantined
+  
+  contacts_kid_kid = 5           #contact frequency between age groups
+  contacts_kid_adult = 2
+  contacts_kid_old = 0.5
+  contacts_adult_adult = 3
+  contacts_adult_old = 1
+  contacts_old_old = 2
+
+  infections_per_contact = 0.2
+  
+attributes:
+###########
   age:
-    values: [age0_15, age16_29, age30_39, age40_44, age45_49, age50_54, age55_59, age60_69, age70_74, age75_79, age80_100]
-    shares: [13%,     14%,      9%,       5%,       5%,       6%,       10%,       9%,       8%,       8%,       13%]
-  #
+    values: [kid, adult, old]
+    shares: [17%, 60%,   23%]
+
   risk:
     values: [high, moderate, low]
     shares:
-      for age=age0_15: [5%, 10%, %%]      # '%%' stands for the rest to reach 100%
-      for age=age16_29: [6%, 12%, %%]
-      #...
-      for age=age80_100: [80%, 10%, %%]
-      otherwise: [60%, 30%, %%]
-  #
+      for age=kid: [5%, %%, 70%]      # '%%' stands for the rest to reach 100%
+      for age=old: [60%, %%, 8%]
+      otherwise: [18%, %%, 20%]
+
   state:
     values: [susceptible, exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, dead, recovered]
-    shares:                               # set initial shares
+    shares:                               
       susceptible: 90%
       recovered: 6%
       presymptomatic: 0.4%
@@ -36,7 +49,7 @@ properties:
         for risk=moderate: 0.3%
         for risk=high: 0.75%
       dead: 0
-  #
+
   quarantined:
     values: [yes, no]
     shares:
@@ -52,32 +65,51 @@ properties:
       otherwise:
         yes: 0
         no: %%
+
+
+formulas:
+#########
+  Kids: ALL with age=kid
+  Adults: ALL with age=adult
+  Olds: ALL with age=old
+  infected(X): X.share(X with state=symptomatic) \
+               + f_asymptomatic * X.share(X with state=asymptomatic) \
+               + f_presymptomatic * X.share(X with state=presymptomatic)
+  force(X): infected(X with quarantined=no) + factor_when_quarantined * infected(X with quarantined=yes)
+  force_of_infection: 
+    for age=kid: contact_kid_kid * force(Kids) + contact_kid_adult * force(Adults) + contact_kid_old * force(Old)
+    for age=adult: contact_kid_adult * force(Kids) + contact_adult_adult * force(Adults) + contact_adult_old * force(Old)
+    for age=old: contact_kid_old * force(Kids) + contact_adult_old * force(Adults) + contact_old_old * force(Old)
+  infection_probability: infections_per_contact * force_of_infection
+  Yesterday: ALL.before(1)
+
+
 #
-# progressions describe time dependent automatic change of properties
+# progressions describe the change of properties over time
 # the progression acts on certain compartments and/or with certain probabilities
-# and changes the values of properties after a given time distribution 
+# and/or changes the values of properties after a given time distribution 
 # The time delay is based on the moment of entering the compartment the progression acts on
 #
-progression:
-  #
+progressions:
+#############
   incubation:
     # exposed people getting infectious some (age-dependent) time after exposure
     for state=exposed:
       var days=
-        for age=age0_15: 5
-        for age=age16_29: 6
-          #...
+        for age=kid: 5
+        for age=old: 4
+        for age=adult: 6
       after.fix(days):                # progression happens after given time
         set state=
-          asymptomatic: 18.4%
-          presymptomatic: 81.6%
-  #
+          asymptomatic: asymptomatic_share
+          presymptomatic: 1 - asymptomatic_share
+
   symptoms_start:
     # presymptomatic people becoming symptomatic after some time
     for state=presymptomatic:
       after.std(2.13, 1.5):           # normal distribution of progression time (mu, sigma)
         set state=symptomatic
-  #
+
   symptoms_worsen:
     # symptomatic people go to hospital, recover or die at home
     for state=symptomatic:
@@ -99,7 +131,7 @@ progression:
       otherwise:                     # complement of other probabilities to 100%
         after.std(3.6, 2):
           set state=recovered      
-  #
+
   in_hospital_recover_or_die:
     # hospitalized people either die or recover (within different times)
     for state=hospitalized:
@@ -109,52 +141,39 @@ progression:
         for risk=low: 5%
       for prob:
         var duration = 
-          for age=age0_16: 10
-          #...
-          for age=age40_44: 30
-          #...
-          for age=age80_100: 7
+          for age=kid: 10
+          for age=adult: 30
+          for age=old: 7
         after.std(duration, duration/2):
           set state=dead
       otherwise:
         var duration = 
-          for age=age0_16: 5
-          #...
-          for age=age40_44: 10
-          #...
-          for age=age80_100: 3
+          for age=kid: 5
+          for age=adult: 10
+          for age=old: 3
         after.std(duration, duration/2):
           set state=recovered      
-  #
+
   infection:
     # susceptible people become exposed
-    for S as state=susceptible:         # restrict population and give it a name
-      for SA as S by age:               # loop over all age categories
-        var tprob = 0                    # create and assign numeric variable
-        for PA as $$Population with age=SA.age:
-          var age_prob = $$User.contact_matrix(SA.age, PA.age)   \
-            * (0.231 * PA.share(PA with state=asymptomatic)     \
-               + 0.692 * PA.share(PA with state=presymptomatic) \
-               + PA.share(PA with state=symptomatic))           \
-            * (0.05 * PA.share(PA with quarantined=yes)         \
-               + PA.share(PA with quarantined=no))
-          tprob = tprob + age_prob
-        for tprob:
-          set SA.state=exposed
-          set SA.quarantined=
-            yes: 20%
-            no: 80%
-  #
+    for S as state=susceptible:         
+      for infection_probability:
+        set state=exposed
+        set quarantined=
+          yes: 20%
+          no: 80%
+
   put_in_quarantine:
     #infection is reported, people are put in quarantine
     for quarantined=no:
-      for state in [exposed, asymptomatic]:
+      for state in [exposed, asymptomatic, presymptomatic]:
         for 10%:                        # each day there is a 10% chance of reporting the case
           set quarantined=yes
       for state=symptomatic:
         for 25%:
           set quarantined=yes
+          
 results:
-  dead_kids = $TotalPersons * $$Population.share($$Population with state=dead with age=age0_16)
-  var P7 = $$Population.before(7)
-  r = $$Population.share(state=exposed) / P7.share(state=exposed)
+########
+  dead_kids = TotalPersons * ALL.share(ALL with state=dead with age=kid)
+  r = 5.2 * ALL.share(ALL with state=exposed) / Yesterday.share(Yesterday with state=exposed)

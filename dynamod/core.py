@@ -4,6 +4,22 @@ from recordtype import recordtype
 def is_num (expr):
     return isinstance(expr, int) or isinstance(expr, float)
 
+def get_line(ctx):
+    if ctx is not None:
+        sym = None
+        if hasattr(ctx, 'symbol'):
+            sym = getattr(ctx, 'symbol')
+        elif hasattr(ctx, 'start'):
+            sym = getattr(ctx, 'start')
+        if hasattr(sym, 'line'):
+           return sym.line
+
+class EvaluationError(Exception):
+    def __init__(self, message, srcfile=None, line=None):
+        if srcfile is not None and line is not None:
+            message = '[' + srcfile + ':' + line + '] ' + message
+        self.message = message
+
 class ConfigurationError(Exception):
     def __init__(self, message, ctx=None, line=None, column=None):
         if ctx is not None:
@@ -23,14 +39,16 @@ class ConfigurationError(Exception):
                 message = '[' + line + '] ' + message
         self.message = message
 
-DynamodDesc = recordtype('DynamodDesc', ['basis', 'params', 'properties', 'progressions'], default=None)
-DynamodProp = recordtype('DynamodProp', ['values', 'shares'])
+DynamodDesc = recordtype('DynamodDesc', ['basis', 'params', 'properties', 'formulas', 'progressions', 'results'], default=None)
+DynamodAttrib = recordtype('DynamodAttrib', ['values', 'shares'])
 DynamodAxisValue  = recordtype('DynamodAxisValue', ['ctx', 'axis', 'value'])
+DynamodFormula  = recordtype('DynamodFormula', ['ctx', 'name', 'args', 'expr'])
 DynamodElseList = recordtype('DynamodElseList', ['ctx', 'list', 'otherwise'])
 DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'expression'])
 DynamodAfter = recordtype('DynamodAfter', ['distrib', 'args', 'block'])
 DynamodAction = recordtype('DynamodAction', ['ctx', 'axis', 'state'])
 DynamodRestriction = recordtype('DynamodRestriction', ['ctx', 'type', 'cond', 'block', ('alias',None)])
+
 TernaryOp = recordtype('TernaryOp', ['ctx', 'opcode', 'op1', 'op2', 'op3'])
 BinaryOp = recordtype('DualOp', ['ctx', 'opcode', 'op1', 'op2'])
 UnaryOp = recordtype('UnaryOp', ['ctx', 'opcode', 'op'])

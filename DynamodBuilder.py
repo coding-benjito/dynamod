@@ -3,6 +3,24 @@ from dynaparser.DynamodParser import DynamodParser
 from antlr4 import ParserRuleContext
 from dynamod.core import *
 
+def combine_list (first, second):
+    reslist = []
+    reslist.append(first)
+    if isinstance(second, list):
+        reslist.extend(second)
+    elif second is not None:
+        reslist.append(second)
+    return reslist
+
+def combine_map (first, second):
+    resmap = {}
+    resmap[first[0]] = first[1]
+    if isinstance(second, dict):
+        resmap.update(second)
+    elif second is not None:
+        resmap[second[0]] = second[1]
+    return resmap
+
 def to_dict (item):
     if item is None:
         return None
@@ -24,46 +42,62 @@ def to_number (txt):
         return float(txt)
 
 class DynamodBuilder(DynamodVisitor):
-    def __init__(self, context):
-        self.context = context
+    def __init__(self, model):
+        self.model = model
 
     def visit (self, ctx:ParserRuleContext):
         return ctx.accept(self) if ctx is not None else None
 
-    def visitDescription(self, ctx:DynamodParser.DescriptionContext):
-        return DynamodDesc(ctx.PATH().getText(),
-                           to_dict(self.visit(ctx.parameters_block().parameters())),
-                           to_dict(self.visit(ctx.properties_block().properties())),
-                           to_dict(self.visit(ctx.progressions_block().progressions())))
+    # Visit a parse tree produced by DynamodParser#model.
+    def visitModel(self, ctx:DynamodParser.ModelContext):
+        self.visit(ctx.model_part())
+        self.visit(ctx.model())
 
-    # Visit a parse tree produced by DynamodParser#params_item.
-    def visitParams_item(self, ctx:DynamodParser.Params_itemContext):
-        return self.visit(ctx.parameter())
+    # Visit a parse tree produced by DynamodParser#model_inc.
+    def visitModel_inc(self, ctx:DynamodParser.Model_incContext):
+        self.model.include (ctx.PATH().getText())
 
-    # Visit a parse tree produced by DynamodParser#params_rep.
-    def visitParams_rep(self, ctx:DynamodParser.Params_repContext):
-        map = self.visit(ctx.parameters())
-        map.update (to_dict(self.visit(ctx.parameter())))
-        return map
+    # Visit a parse tree produced by DynamodParser#model_pars.
+    def visitModel_pars(self, ctx:DynamodParser.Model_parsContext):
+        return self.visit(ctx.parameters())
+
+    # Visit a parse tree produced by DynamodParser#model_props.
+    def visitModel_attribs(self, ctx:DynamodParser.Model_attribsContext):
+        return self.visit(ctx.attributes())
+
+    # Visit a parse tree produced by DynamodParser#model_formulas.
+    def visitModel_formulas(self, ctx:DynamodParser.Model_formulasContext):
+        return self.visit(ctx.formulas())
+
+    # Visit a parse tree produced by DynamodParser#model_progressions.
+    def visitModel_progressions(self, ctx:DynamodParser.Model_progressionsContext):
+        return self.visit(ctx.progressions())
+
+    # Visit a parse tree produced by DynamodParser#model_results.
+    def visitModel_results(self, ctx:DynamodParser.Model_resultsContext):
+        return self.visit(ctx.results())
+
+    # Visit a parse tree produced by DynamodParser#parameters.
+    def visitParameters(self, ctx:DynamodParser.ParametersContext):
+        self.visit(ctx.parameter())
+        self.visit(ctx.parameters())
 
     # Visit a parse tree produced by DynamodParser#parameter.
     def visitParameter(self, ctx:DynamodParser.ParameterContext):
-        return (ctx.NAME().getText(), self.visit(ctx.expression()))
+        self.model.addParameter (ctx, ctx.NAME().getText(), self.visit(ctx.expression()))
 
-    # Visit a parse tree produced by DynamodParser#properties_item.
-    def visitProperties_item(self, ctx:DynamodParser.Properties_itemContext):
-        return to_dict((ctx.NAME().getText(), self.visit(ctx.property_block())))
+    # Visit a parse tree produced by DynamodParser#attributes.
+    def visitAttributes(self, ctx:DynamodParser.AttributesContext):
+        self.visit(ctx.attribute())
+        self.visit(ctx.attributes())
 
-    # Visit a parse tree produced by DynamodParser#properties_rep.
-    def visitProperties_rep(self, ctx:DynamodParser.Properties_repContext):
-        map = self.visit(ctx.properties())
-        map[ctx.NAME().getText()] = self.visit(ctx.property_block())
-        return map
+    # Visit a parse tree produced by DynamodParser#attribute.
+    def visitAttribute(self, ctx:DynamodParser.AttributeContext):
+        self.model.addAttribute(ctx, ctx.NAME().getText(), self.visit(ctx.attribute_block()))
 
-    # Visit a parse tree produced by DynamodParser#property_block.
-    def visitProperty_block(self, ctx:DynamodParser.Property_blockContext):
-        prop = DynamodProp(self.visit(ctx.values()), self.visit(ctx.shares()))
-        return prop
+    # Visit a parse tree produced by DynamodParser#attribute_block.
+    def visitAttribute_block(self, ctx:DynamodParser.Attribute_blockContext):
+        return DynamodAttrib(self.visit(ctx.values()), self.visit(ctx.shares()))
 
     # Visit a parse tree produced by DynamodParser#shares_as_list.
     def visitShares_as_list(self, ctx:DynamodParser.Shares_as_listContext):
@@ -81,30 +115,26 @@ class DynamodBuilder(DynamodVisitor):
     def visitShare_map_block(self, ctx:DynamodParser.Share_map_blockContext):
         return self.visit(ctx.share_map())
 
-    # Visit a parse tree produced by DynamodParser#share_map_rep.
-    def visitShare_map_rep(self, ctx:DynamodParser.Share_map_repContext):
-        map = self.visit(ctx.share_map())
-        map[ctx.NAME().getText()] = self.visit(ctx.pexpression())
-        return map
+    # Visit a parse tree produced by DynamodParser#share_map.
+    def visitShare_map(self, ctx:DynamodParser.Share_mapContext):
+        return combine_map(self.visit(ctx.share_def()), self.visit(ctx.share_map()))
 
-
-    # Visit a parse tree produced by DynamodParser#share_map_item.
-    def visitShare_map_item(self, ctx:DynamodParser.Share_map_itemContext):
-        return to_dict((ctx.NAME().getText(), self.visit(ctx.pexpression())))
+    # Visit a parse tree produced by DynamodParser#share_def.
+    def visitShare_def(self, ctx:DynamodParser.Share_defContext):
+        return (ctx.NAME().getText(), self.visit(ctx.pexpression()))
 
     # Visit a parse tree produced by DynamodParser#cond_shares_block.
     def visitCond_shares_block(self, ctx:DynamodParser.Cond_shares_blockContext):
         return DynamodElseList(ctx, self.visit(ctx.cond_shares()), self.visit(ctx.shares()))
 
-    # Visit a parse tree produced by DynamodParser#cond_shares_item.
-    def visitCond_shares_item(self, ctx:DynamodParser.Cond_shares_itemContext):
-        return [(self.visit(ctx.condition()), self.visit(ctx.shares()))]
 
-    # Visit a parse tree produced by DynamodParser#cond_shares_rep.
-    def visitCond_shares_rep(self, ctx:DynamodParser.Cond_shares_repContext):
-        list = self.visit(ctx.cond_shares())
-        list.append ((self.visit(ctx.condition()), self.visit(ctx.shares())))
-        return list
+    # Visit a parse tree produced by DynamodParser#cond_shares.
+    def visitCond_shares(self, ctx:DynamodParser.Cond_sharesContext):
+        return combine_list(self.visit(ctx.cond_share()), self.visit(ctx.cond_shares()))
+
+    # Visit a parse tree produced by DynamodParser#cond_share.
+    def visitCond_share(self, ctx:DynamodParser.Cond_shareContext):
+        return (self.visit(ctx.condition()), self.visit(ctx.shares()))
 
     # Visit a parse tree produced by DynamodParser#pexpr_as_simple.
     def visitPexpr_as_simple(self, ctx:DynamodParser.Pexpr_as_simpleContext):
@@ -114,20 +144,17 @@ class DynamodBuilder(DynamodVisitor):
     def visitPexpr_as_block(self, ctx:DynamodParser.Pexpr_as_blockContext):
         return self.visit(ctx.pexpression_block())
 
-
     # Visit a parse tree produced by DynamodParser#pexpression_block.
     def visitPexpression_block(self, ctx:DynamodParser.Pexpression_blockContext):
-        return DynamodElseList(ctx, self.visit(ctx.pexpressions()), self.visit(ctx.pexpression()))
+        return DynamodElseList(ctx, self.visit(ctx.pexp_list()), self.visit(ctx.pexpression()))
 
-    # Visit a parse tree produced by DynamodParser#pexpressions_item.
-    def visitPexpressions_item(self, ctx:DynamodParser.Pexpressions_itemContext):
-        return [(self.visit(ctx.condition()), self.visit(ctx.pexpression()))]
+    # Visit a parse tree produced by DynamodParser#pexp_list.
+    def visitPexp_list(self, ctx:DynamodParser.Pexp_listContext):
+        return combine_list(self.visit(ctx.pexp_item()), self.visit(ctx.pexp_list()))
 
-    # Visit a parse tree produced by DynamodParser#pexpressions_rep.
-    def visitPexpressions_rep(self, ctx:DynamodParser.Pexpressions_repContext):
-        list = self.visit(ctx.pexpressions())
-        list.append ((self.visit(ctx.condition()), self.visit(ctx.pexpression())))
-        return list
+    # Visit a parse tree produced by DynamodParser#pexp_item.
+    def visitPexp_item(self, ctx:DynamodParser.Pexp_itemContext):
+        return (self.visit(ctx.condition()), self.visit(ctx.pexpression()))
 
     # Visit a parse tree produced by DynamodParser#cond_as_axval.
     def visitCond_as_axval(self, ctx:DynamodParser.Cond_as_axvalContext):
@@ -159,29 +186,22 @@ class DynamodBuilder(DynamodVisitor):
             list.append(self.visit(entry))
         return list
 
-    # Visit a parse tree produced by DynamodParser#progressions_item.
-    def visitProgressions_item(self, ctx:DynamodParser.Progressions_itemContext):
-        return to_dict((ctx.NAME().getText(), self.visit(ctx.progression_block())))
+    # Visit a parse tree produced by DynamodParser#progressions.
+    def visitProgressions(self, ctx:DynamodParser.ProgressionsContext):
+        self.visit(ctx.progression())
+        self.visit(ctx.progressions())
 
-    # Visit a parse tree produced by DynamodParser#progressions_rep.
-    def visitProgressions_rep(self, ctx:DynamodParser.Progressions_repContext):
-        map = self.visit(ctx.progressions())
-        map[ctx.NAME().getText()] = self.visit(ctx.progression_block())
-        return map
+    # Visit a parse tree produced by DynamodParser#progression.
+    def visitProgression(self, ctx:DynamodParser.ProgressionContext):
+        self.model.addProgression(ctx, ctx.NAME().getText(), self.visit(ctx.progression_block()))
 
     # Visit a parse tree produced by DynamodParser#progression_block.
     def visitProgression_block(self, ctx:DynamodParser.Progression_blockContext):
         return self.visit(ctx.progression())
 
-    # Visit a parse tree produced by DynamodParser#progression_rep.
-    def visitProgression_rep(self, ctx:DynamodParser.Progression_repContext):
-        list = self.visit(ctx.progression())
-        list.append(self.visit(ctx.progression_component()))
-        return list
-
-    # Visit a parse tree produced by DynamodParser#progression_item.
-    def visitProgression_item(self, ctx:DynamodParser.Progression_itemContext):
-        return [self.visit(ctx.progression_component())]
+    # Visit a parse tree produced by DynamodParser#progression_statements.
+    def visitProgression_statements(self, ctx:DynamodParser.Progression_statementsContext):
+        return combine_list (self.visit(ctx.progression_statement()), self.visit(ctx.progression_statements()))
 
     # Visit a parse tree produced by DynamodParser#prog_vardef.
     def visitProg_vardef(self, ctx:DynamodParser.Prog_vardefContext):
@@ -229,6 +249,35 @@ class DynamodBuilder(DynamodVisitor):
     # Visit a parse tree produced by DynamodParser#pstate_block.
     def visitPstate_block(self, ctx:DynamodParser.Pstate_blockContext):
         return self.visit(ctx.share_map_block())
+
+    # Visit a parse tree produced by DynamodParser#results.
+    def visitResults(self, ctx:DynamodParser.ResultsContext):
+        self.visit(ctx.result())
+        self.visit(ctx.results())
+
+    # Visit a parse tree produced by DynamodParser#result.
+    def visitResult(self, ctx:DynamodParser.ResultContext):
+        self.model.addResult(ctx, ctx.NAME().getText(), self.visit(ctx.expression()))
+
+    # Visit a parse tree produced by DynamodParser#formulas.
+    def visitFormulas(self, ctx:DynamodParser.FormulasContext):
+        self.visit(ctx.formula())
+        self.visit(ctx.formulas())
+
+    # Visit a parse tree produced by DynamodParser#formula_expr.
+    def visitFormula_expr(self, ctx:DynamodParser.Formula_exprContext):
+        self.model.addFormula(ctx, ctx.NAME().getText(), self.visit(ctx.pexpression()))
+
+    # Visit a parse tree produced by DynamodParser#formula_func.
+    def visitFormula_func(self, ctx:DynamodParser.Formula_funcContext):
+        self.model.addFunc(ctx, ctx.NAME().getText(), self.visit(ctx.formal_args()), self.visit(ctx.pexpression()))
+
+    # Visit a parse tree produced by DynamodParser#formal_args.
+    def visitFormal_args(self, ctx:DynamodParser.Formal_argsContext):
+        list = []
+        for entry in ctx.args:
+            list.append (entry.text)
+        return list
 
     # Visit a parse tree produced by DynamodParser#variable_definition.
     def visitVariable_definition(self, ctx:DynamodParser.Variable_definitionContext):
@@ -354,17 +403,9 @@ class DynamodBuilder(DynamodVisitor):
     def visitPrimary_dot(self, ctx:DynamodParser.Primary_dotContext):
         return BinaryOp(ctx, 'dot', self.visit(ctx.primary()), ctx.NAME().getText())
 
-    # Visit a parse tree produced by DynamodParser#primary_system.
-    def visitPrimary_system(self, ctx:DynamodParser.Primary_systemContext):
-        return UnaryOp(ctx, 'syspar', ctx.NAME().getText())
-
     # Visit a parse tree produced by DynamodParser#primary_name.
     def visitPrimary_name(self, ctx:DynamodParser.Primary_nameContext):
         return UnaryOp(ctx, 'var', ctx.NAME().getText())
-
-    # Visit a parse tree produced by DynamodParser#primary_param.
-    def visitPrimary_param(self, ctx:DynamodParser.Primary_paramContext):
-        return UnaryOp(ctx, 'param', ctx.NAME().getText())
 
     # Visit a parse tree produced by DynamodParser#arguments.
     def visitArguments(self, ctx:DynamodParser.ArgumentsContext):

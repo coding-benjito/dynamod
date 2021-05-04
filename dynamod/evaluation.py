@@ -1,45 +1,42 @@
-from dynamod.dynaprop import DynaModel
-from dynamod.dynaprop import Partition
 from dynamod.core import *
+from dynamod.context import *
 
-class VarContext:
-    def __init__(self, prev=None):
-        self.prev = prev
-        self.here = []
+class DynamodExpression:
+    def __init__(self, model, ctx, name, expr):
+        self.srcfile = model.srcfile
+        self.line = get_line(ctx)
+        self.name = name
+        self.expr = expr
 
-    def knows (self, key):
-        if key in self.here:
-            return True
-        if self.prev is not None:
-            return self.prev.knows (key)
-        return False
+    def evaluate(self, context:DynaContext):
+        try:
+            return Evaluator(context).evalExpr(self.expr)
+        except Exception as e:
+            raise EvaluationError("failed to evaluate '" + self.name + "'", self.srcfile, self.line) from e
 
-    def get (self, key):
-        if key in self.here:
-            return self.here[key]
-        if self.prev is not None:
-            return self.prev.get (key)
-        return None
+class DynamodFunction:
+    def __init__(self, model, ctx, name, args, expr):
+        self.srcfile = model.srcfile
+        self.line = get_line(ctx)
+        self.name = name
+        self.args = args
+        self.expr = expr
 
-    def put (self, key, value):
-        if value is None:
-            self.delete (key)
-        if key in self.here or self.prev is None or not self.prev.knows(key):
-            self.here[key] = value
-        else:
-            self.prev.put (key, value)
-
-    def delete (self, key):
-        if key in self.here:
-            del (self.here[key])
-        elif self.prev is not None:
-            self.prev.delete (key)
+    def evaluate(self, params, context:DynaContext):
+        if not isinstance(params, list) or len(params) != len(self.args):
+            raise EvaluationError("failed to invoke '" + self.name + "', wrong number of arguments", self.srcfile, self.line)
+        localCtx = MapStore()
+        for n,v in zip(self.args, params):
+            localCtx[n] = v
+        try:
+            return Evaluator(context.chained_by(localCtx)).evalExpr(self.expr)
+        except Exception as e:
+            raise EvaluationError("failed to invoke '" + self.name + "'", self.srcfile, self.line) from e
 
 class Evaluator:
-    def __init__(self, model: DynaModel, given=None, context=VarContext()):
-        self.model = model
-        self.given = given
+    def __init__(self, context:DynaContext):
         self.context = context
+        self.model = context.model
 
     def evalComparison (self, opcode, op1, op2):
         if opcode == '<':
@@ -111,14 +108,6 @@ class Evaluator:
                 if self.context.knows (expr.op):
                     return self.context.get (expr.op)
                 raise ConfigurationError("unknown variable: " + expr.op, expr.ctx)
-            if expr.opcode == 'param':
-                if self.model.hasParam (expr.op):
-                    return self.model.getParam (expr.op)
-                raise ConfigurationError("unknown parameter: " + '$' + expr.op, expr.ctx)
-            if expr.opcode == 'syspar':
-                val = self.model.getSysParam (expr.op)
-                if val is None:
-                    raise ConfigurationError("unknown system variable: " + '$$' + expr.op, expr.ctx)
             raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
 
         if isinstance(expr, BinaryOp):
@@ -140,19 +129,21 @@ class Evaluator:
                     return getattr(op1, expr.op2)
                 raise ConfigurationError("unknown field " + expr.op2, expr.ctx)
             if expr.opcode == 'by':
+                from dynamod.dynaprop import Partition
                 prt = self.evalExpr(expr.op1)
                 axis = expr.op2
                 if isinstance(prt, Partition):
-                    if axis in self.model.properties.prop_map:
+                    if axis in self.model.attributes.attr_map:
                         return prt.partion_by (axis)
                     raise ConfigurationError("unknown property: " + axis, expr.ctx)
                 raise ConfigurationError("not a partition", expr.ctx)
 
             if expr.opcode == 'with':
+                from dynamod.dynaprop import Partition
                 prt = self.evalExpr(expr.op1)
                 cond = expr.op2
                 if isinstance(prt, Partition) and isinstance(cond, DynamodAxisValue):
-                    if cond.axis in self.model.properties.prop_map:
+                    if cond.axis in self.model.attributes.attr_map:
                         return prt.partition (cond.axis, cond.value)
                     raise ConfigurationError("unknown property: " + cond.axis, expr.ctx)
                 raise ConfigurationError("illegal partition", expr.ctx)
@@ -165,15 +156,17 @@ class Evaluator:
                     for op in expr.op3:
                         args.append(self.evalExpr(op))
                 obj = self.evalExpr(expr.op1)
-                method = expr.op2
-                if hasattr(obj, method) and callable(obj.method):
-                    return obj.method(*args)
+                methodname = expr.op2
+                if hasattr(obj, methodname):
+                    method = getattr(obj, methodname)
+                    if callable(method):
+                        return method(*args)
                 raise ConfigurationError("unknown function call", expr.ctx)
             raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
 
         raise ConfigurationError("unknown condition rule:" + expr)
 
 
-def evalExpr (model: DynaModel, expr, given=None, context=VarContext()):
-    return Evaluator(model, given, context).evalExpr(expr)
+def evalExpr (expr, context):
+    return Evaluator(context).evalExpr(expr)
 

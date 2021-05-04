@@ -95,36 +95,37 @@ def atStartOfInput(self):
 
 // parser rules
 
-description: 
-  (BASIS ':' PATH NEWLINE)?
-  (PARAMETERS ':' parameters_block)?
-  PROPERTIES ':' properties_block 
-  PROGRESSION ':' progressions_block
+model:
+  model_part model? 
   ;
-
-parameters_block: 
-  NEWLINE INDENT parameters DEDENT 
+  
+model_part:
+  INCLUDE ':' PATH NEWLINE                            #model_inc
+  | PARAMETERS ':' NEWLINE INDENT parameters DEDENT   #model_pars
+  | ATTRIBUTES ':' NEWLINE INDENT attributes DEDENT   #model_attribs
+  | FORMULAS ':' NEWLINE INDENT formulas DEDENT       #model_formulas
+  | PROGRESSION ':' NEWLINE INDENT progressions DEDENT #model_progressions
+  | RESULTS ':' NEWLINE INDENT results DEDENT         #model_results
   ;
+    
 
 parameters: 
-  parameter                               #params_item
-  | parameters parameter                  #params_rep
+  parameter parameters?
   ;
                  
 parameter:
-  '$' NAME '=' expression NEWLINE
+  NAME '=' expression NEWLINE
   ;
 
-properties_block: 
-  NEWLINE INDENT properties DEDENT 
+attributes: 
+  attribute attributes?
+  ;
+                 
+attribute: 
+  NAME ':' attribute_block
   ;
 
-properties: 
-  NAME ':' property_block                 #properties_item
-  | properties NAME ':' property_block    #properties_rep 
-  ;
-
-property_block: 
+attribute_block: 
   NEWLINE INDENT VALUES ':' values NEWLINE SHARES ':' shares DEDENT 
   ;
 
@@ -139,8 +140,11 @@ share_map_block:
   ;
 
 share_map: 
-  NAME ':' pexpression                    #share_map_item
-  | share_map NAME ':' pexpression        #share_map_rep 
+  share_def share_map?
+  ;
+  
+share_def:
+  NAME ':' pexpression                    
   ;
                  
 cond_shares_block: 
@@ -148,9 +152,11 @@ cond_shares_block:
   ;
 
 cond_shares: 
-  FOR condition ':' shares                #cond_shares_item
-  | cond_shares 
-    FOR condition ':' shares              #cond_shares_rep
+  cond_share cond_shares?
+  ;
+  
+cond_share:
+  FOR condition ':' shares
   ;
 
 pexpression: 
@@ -159,13 +165,15 @@ pexpression:
   ;
 
 pexpression_block: 
-  NEWLINE INDENT pexpressions (OTHERWISE ':' pexpression)? DEDENT 
+  NEWLINE INDENT pexp_list (OTHERWISE ':' pexpression)? DEDENT 
   ;
 
-pexpressions: 
-  FOR condition ':' pexpression           #pexpressions_item
-  | pexpressions 
-    FOR condition ':' pexpression         #pexpressions_rep
+pexp_list: 
+  pexp_item pexp_list?
+  ;
+  
+pexp_item:
+  FOR condition ':' pexpression
   ;
 
 condition: 
@@ -183,26 +191,23 @@ expression_list:
   OPEN_BRACK exprs+=expression (',' exprs+=expression)* CLOSE_BRACK 
   ;
 
-progressions_block: 
-  NEWLINE INDENT progressions DEDENT 
-  ;
-
 progressions: 
-  NAME ':' progression_block              #progressions_item
-  | progressions 
-    NAME ':' progression_block            #progressions_rep 
-  ;
-
-progression_block: 
-  NEWLINE INDENT progression DEDENT 
+  progression progressions?
   ;
 
 progression:
-  progression_component                   #progression_item
-  | progression progression_component     #progression_rep
+  NAME ':' progression_block
   ;
   
-progression_component:
+progression_block: 
+  NEWLINE INDENT progression_statements DEDENT 
+  ;
+
+progression_statements:
+  progression_statement progression_statements?
+  ;
+  
+progression_statement:
   variable_definition                     #prog_vardef
   | restr+=restriction+ 
     (OTHERWISE ':' progression_block)?    #prog_restrictions
@@ -211,12 +216,12 @@ progression_component:
   ;
   
 restriction:
-  FOR (NAME AS)? condition ':' progression_block  #restr_for   
+  FOR (NAME AS)? condition ':' progression_block #restr_for   
   | IF disjunction ':' progression_block  #restr_if 
   ;
   
 progression_after:
-  AFTER '.' NAME '(' arguments ')' ':' progression_block
+  AFTER '.' NAME OPEN_PAREN arguments CLOSE_PAREN ':' progression_block
   ;
   
 progression_action:
@@ -228,13 +233,34 @@ pstate:
   | share_map_block                       #pstate_block
   ;
   
+results: 
+  result results?
+  ;
+  
+result:
+  NAME '=' expression NEWLINE             
+  ;
+                 
+formulas: 
+  formula formulas?
+  ;
+                 
+formula:
+  NAME ':' pexpression                    #formula_expr
+  | NAME OPEN_PAREN formal_args CLOSE_PAREN ':' pexpression  #formula_func
+  ;
+
+formal_args: 
+  args+=NAME (',' args+=NAME)*
+  ;
+
 
 variable_definition:
   VAR? NAME '=' pexpression
   ;
   
 expression:
-  expval IF disjunction ELSE expression   #expr_ifelse
+  IF disjunction expval ELSE expression   #expr_ifelse
   | expval                                #expr_value
   ;
   
@@ -272,7 +298,7 @@ factor:
   '+' factor                              #factor_pos
   | '-' factor                            #factor_neg
   | primary                               #factor_primary
-  | '(' expression ')'                    #factor_expr
+  | OPEN_PAREN expression CLOSE_PAREN     #factor_expr
   | NUMBER                                #factor_number
   | NUMBER '%'                            #factor_percent
   | '%%'                                  #factor_rest
@@ -280,11 +306,9 @@ factor:
 
 primary:
   primary '.' NAME                        #primary_dot
-  | NAME '(' arguments? ')'               #primary_func
-  | primary '.' NAME '(' arguments? ')'   #primary_method
+  | NAME OPEN_PAREN arguments? CLOSE_PAREN              #primary_func
+  | primary '.' NAME OPEN_PAREN arguments? CLOSE_PAREN  #primary_method
   | NAME                                  #primary_name
-  | '$' NAME                              #primary_param
-  | '$' '$' NAME                          #primary_system
   ;
   
 arguments: 
@@ -293,10 +317,12 @@ arguments:
 
 // lexer rules
 
-BASIS : 'basis';
+INCLUDE : 'include';
 PARAMETERS : 'parameters';
-PROPERTIES : 'properties';
-PROGRESSION: 'progression';
+ATTRIBUTES : 'attributes';
+PROGRESSION: 'progressions';
+FORMULAS: 'formulas';
+RESULTS: 'results';
 CHANGES: 'changes';
 VALUES : 'values';
 SHARES : 'shares';
