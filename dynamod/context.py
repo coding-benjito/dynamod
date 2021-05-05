@@ -24,39 +24,42 @@ class ValueStore:
     def extendedBy (self, store):
         return ChainedStore(self, store)
 
+    def extended (self):
+        return ChainedStore(self, None)
+
     def clear_cache (self):
         pass
 
 class ChainedStore(ValueStore):
     def __init__(self, base:ValueStore, local:ValueStore=None):
-        self.secondary = base
-        self.primary = local if local is not None else MapStore()
+        self.base = base
+        self.local = local if local is not None else MapStore()
 
     def knows (self, key):
-        return self.primary.knows(key) or self.secondary.knows(key)
+        return self.local.knows(key) or self.base.knows(key)
 
     def get (self, key):
-        if self.primary.knows(key):
-            return self.primary.get(key)
-        return self.secondary.get(key)
+        if self.local.knows(key):
+            return self.local.get(key)
+        return self.base.get(key)
 
     def put (self, key, value):
         if value is None:
             self.delete (key)
-        if self.primary.knows(key) or not self.secondary.knows(key):
-            self.primary.put(key, value)
+        if self.local.knows(key) or not self.base.knows(key):
+            self.local.put(key, value)
         else:
-            self.secondary.put(key, value)
+            self.base.put(key, value)
 
     def delete (self, key):
-        if self.primary.knows(key) or not self.secondary.knows(key):
-            self.primary.delete(key)
+        if self.local.knows(key) or not self.base.knows(key):
+            self.local.delete(key)
         else:
-            self.secondary.delete(key)
+            self.base.delete(key)
 
     def clear_cache (self):
-        self.primary.clear_cache()
-        self.secondary.clear_cache()
+        self.local.clear_cache()
+        self.base.clear_cache()
 
 class MapStore(ValueStore):
     def __init__(self, map=None):

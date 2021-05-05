@@ -44,6 +44,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#model_ignore.
+    def visitModel_ignore(self, ctx:DynamodParser.Model_ignoreContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#parameters.
     def visitParameters(self, ctx:DynamodParser.ParametersContext):
         return self.visitChildren(ctx)

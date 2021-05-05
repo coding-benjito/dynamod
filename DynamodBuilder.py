@@ -197,7 +197,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#progression_block.
     def visitProgression_block(self, ctx:DynamodParser.Progression_blockContext):
-        return self.visit(ctx.progression())
+        return self.visit(ctx.progression_statements())
 
     # Visit a parse tree produced by DynamodParser#progression_statements.
     def visitProgression_statements(self, ctx:DynamodParser.Progression_statementsContext):

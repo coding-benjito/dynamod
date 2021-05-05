@@ -1,6 +1,8 @@
 from dynamod.core import *
 from dynamod.evaluation import *
+from collections import OrderedDict
 import json
+import numpy as np
 
 class DynaModel:
     def __init__(self, srcfile):
@@ -11,12 +13,64 @@ class DynaModel:
         self.parameters = {}
         self.results = {}
         self.progressions = {}
+        self.attDescs = OrderedDict()
+
+    def include(self, path):
+        keep = self.srcfile
+        self.srcfile = path
+        parse_model(path, self)
+        self.srcfile = keep
+
+    def initialize(self):
         self.baseStore = self.build_basestore()
         self.partition = Partition(self)
         self.context = DynaContext(self)
         self.attributes = AttributeSystem(self)
-        self.matrix = self.attributes.build_matrix()
+        for name, attDesc in self.attDescs.items():
+            self.attributes.addAttribute(name, attDesc)
+        self.matrix = np.array(self.attributes.build_matrix())
         self.tick = 0
+
+    def step(self):
+        self.init_step()
+        for name, prog in self.progressions.items():
+            self.enter_local_context()
+            try:
+                for step in prog:
+                    self.perform_step (step)
+            except Exception as e:
+                raise EvaluationError("failed to perform progression " + name) from e
+            self.leave_local_context()
+        self.close_step()
+
+    def enter_local_context(self):
+        self.context.values = self.context.values.extend()
+
+    def leave_local_context(self):
+        self.context.values = self.context.values.base
+
+    def init_step(self):
+        self.tick += 1
+        self.incoming = np.zeros(self.matrix.shape)
+        self.outgoing = np.zeros(self.matrix.shape)
+
+    def close_step(self):
+        self.matrix += (self.incoming - self.outgoing)
+
+    def perform_step(self, op):
+        if isinstance(op, DynamodElseList):
+            pass
+        elif isinstance(op, DynamodAfter):
+            pass
+        elif isinstance(op, DynamodAction):
+            pass
+        elif isinstance(op, DynamodVarDef):
+            self.perform_vardef (op)
+        else:
+            raise ConfigurationError("unknown progression operarion: " + op, op.ctx)
+
+    def perform_vardef (self, op:DynamodVarDef):
+        self.context.values.put(op.varname, evalExpr(op.expression, self.context))
 
     def invokeFunc(self, funcname, args):
         pass
@@ -43,7 +97,7 @@ class DynaModel:
         self.functions[name] = DynamodFunction(self, ctx, args, name, expr)
 
     def addAttribute(self, ctx, name, attdesc:DynamodAttrib):
-        self.attributes.addAttribute(name, attdesc)
+        self.attDescs[name] = attdesc
 
 
 class AttributeSystem:
@@ -272,3 +326,26 @@ class FormulaStore(ImmutableMapStore):
 
     def clear_cache(self):
         self.cache = {}
+
+def parse_model (srcfile:str, model=None, trace=False):
+    from antlr4 import FileStream, CommonTokenStream
+    from dynaparser.DynamodLexer import DynamodLexer
+    from dynaparser.DynamodParser import DynamodParser
+    from DynamodBuilder import DynamodBuilder
+
+    input = FileStream(srcfile)
+    lexer = DynamodLexer(input)
+    stream = CommonTokenStream(lexer)
+    parser = DynamodParser(stream)
+    parser.setTrace(trace)
+    tree = parser.model()
+    if model is None:
+        model = DynaModel(srcfile)
+    builder = DynamodBuilder(model)
+    builder.visitModel(tree)
+    return model
+
+def get_total(matrix):
+    if isinstance(matrix, list):
+        return sum([get_total(s) for s in matrix])
+    return matrix

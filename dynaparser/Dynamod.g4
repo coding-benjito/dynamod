@@ -96,7 +96,7 @@ def atStartOfInput(self):
 // parser rules
 
 model:
-  model_part model? 
+  model_part model? EOF
   ;
   
 model_part:
@@ -106,6 +106,7 @@ model_part:
   | FORMULAS ':' NEWLINE INDENT formulas DEDENT       #model_formulas
   | PROGRESSION ':' NEWLINE INDENT progressions DEDENT #model_progressions
   | RESULTS ':' NEWLINE INDENT results DEDENT         #model_results
+  | NEWLINE                                           #model_ignore
   ;
     
 

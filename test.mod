@@ -1,4 +1,4 @@
-include: 'c:/develop/dynamod/basis.mod'
+#include: 'c:/develop/dynamod/basis.mod'
 
 parameters:
 ###########
@@ -177,3 +177,4 @@ results:
 ########
   dead_kids = TotalPersons * ALL.share(ALL with state=dead with age=kid)
   r = 5.2 * ALL.share(ALL with state=exposed) / Yesterday.share(Yesterday with state=exposed)
+
