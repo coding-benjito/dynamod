@@ -15,62 +15,133 @@ class DynaModel:
         self.progressions = {}
         self.attDescs = OrderedDict()
 
+    def initialize(self):
+        self.baseStore = self.build_basestore()
+        self.partition = Partition(self)
+        self.context = DynaContext(self)
+        self.attSystem = AttributeSystem(self)
+        for name, attDesc in self.attDescs.items():
+            self.attSystem.addAttribute(name, attDesc)
+        self.partition.initialize()
+        self.matrix = np.array(self.attSystem.build_matrix())
+        self.tick = 0
+
+    def evalExpr (self, expr):
+        return evalExpression(expr, self.context)
+
+    def evalCond(self, expr):
+        return evalCondition(expr, self.context)
+
     def include(self, path):
         keep = self.srcfile
         self.srcfile = path
         parse_model(path, self)
         self.srcfile = keep
 
-    def initialize(self):
-        self.baseStore = self.build_basestore()
-        self.partition = Partition(self)
-        self.context = DynaContext(self)
-        self.attributes = AttributeSystem(self)
-        for name, attDesc in self.attDescs.items():
-            self.attributes.addAttribute(name, attDesc)
-        self.matrix = np.array(self.attributes.build_matrix())
-        self.tick = 0
-
     def step(self):
         self.init_step()
         for name, prog in self.progressions.items():
             self.enter_local_context()
             try:
-                for step in prog:
-                    self.perform_step (step)
+                self.perform_steps (prog)
             except Exception as e:
                 raise EvaluationError("failed to perform progression " + name) from e
             self.leave_local_context()
         self.close_step()
 
     def enter_local_context(self):
-        self.context.values = self.context.values.extend()
+        self.context.values = self.context.values.extended()
 
     def leave_local_context(self):
         self.context.values = self.context.values.base
 
     def init_step(self):
         self.tick += 1
-        self.incoming = np.zeros(self.matrix.shape)
-        self.outgoing = np.zeros(self.matrix.shape)
+        self.incoming = np.zeros_like(self.matrix)
+        self.outgoing = np.zeros_like(self.matrix)
 
     def close_step(self):
         self.matrix += (self.incoming - self.outgoing)
 
+    def perform_steps(self, steps):
+        for step in steps:
+            self.perform_step(step)
+
     def perform_step(self, op):
         if isinstance(op, DynamodElseList):
-            pass
+            self.perform_restrictions(op)
         elif isinstance(op, DynamodAfter):
             pass
         elif isinstance(op, DynamodAction):
-            pass
+            self.perform_action (op)
         elif isinstance(op, DynamodVarDef):
             self.perform_vardef (op)
         else:
             raise ConfigurationError("unknown progression operarion: " + op, op.ctx)
 
+    def perform_action (self, op:DynamodAction):
+        if isinstance(op.state, str):
+            self.partition.set_state(op.axis, op.state)
+        elif isinstance(op.state, dict):
+            shares = {}
+            for state, share in op.state.items():
+                shares[state] = self.evalExpr(share)
+            normalize_map(shares, op.axis, op.ctx)
+            for state, share in shares:
+                self.partition.set_state(op.axis, state, share)
+        else:
+            raise ConfigurationError("unknown state description: " + op.state, op.ctx)
+
     def perform_vardef (self, op:DynamodVarDef):
-        self.context.values.put(op.varname, evalExpr(op.expression, self.context))
+        self.context.values.put(op.varname, self.evalExpr(op.expression))
+
+    def perform_restrictions (self, op:DynamodElseList):
+        total_prob = 1
+        axes = set()
+        axvalues = set()
+        oldPartition = self.partition
+        for restr in op.list:
+            if restr.type == 'if':
+                is_true = evalCond(restr.cond)
+                if not is_true:
+                    continue
+                total_prob = 0
+                self.perform_on (restr, oldPartition)
+            elif isinstance(restr.cond, DynamodAxisValue):
+                axval = restr.cond
+                axes.add(axval.axis)
+                value = axval.value
+                if isinstance(value, list):
+                    axvalues.update(value)
+                    for v in value:
+                        self.perform_on (restr, oldPartition.restricted(axval.axis, v))
+                else:
+                    value = self.evalExpr(value)
+                    axvalues.add(value)
+                    self.perform_on(restr, oldPartition.restricted(axval.axis, value))
+            else:
+                prob = self.evalExpr(restr.cond)
+                total_prob -= prob
+                self.perform_on (restr, oldPartition.with_prob(prob))
+
+            if op.otherwise is not None:
+                if total_prob != 1:
+                    if len(axes) != 0:
+                        raise ConfigurationError("cannot use otherwise after mixed axis/probability restrictions", op.otherwise.ctx)
+                    self.perform_on(restr, oldPartition.with_prob(1-total_prob))
+                if len(axes) > 1:
+                    raise ConfigurationError("cannot use otherwise after restrictions over multiple axes", op.otherwise.ctx)
+                others = set(self.attSystem.attr_map.keys()) - axvalues
+                for v in others:
+                    self.perform_on(restr, oldPartition.restricted(axes.pop(), v))
+
+        self.partition = oldPartition
+
+    def perform_on(self, restr:DynamodRestriction, part):
+        if restr.alias is not None:
+            self.context.values.put(restr.alias, part)
+        self.partition = part
+        self.perform_steps(restr.block)
 
     def invokeFunc(self, funcname, args):
         pass
@@ -153,6 +224,12 @@ class Attribute:
             i += 1
         return matrix
 
+    def normalize_list(self, array, ctx=None):
+        return normalize_list(array, self.name, ctx)
+
+    def normalize_map(self, shares, ctx=None):
+        normalize_map(shares, self.name, ctx)
+
 class ShareSystem:
     def __init__(self, att:Attribute, shares):
         self.att = att
@@ -183,34 +260,13 @@ class ShareSystem:
                 if ax not in self.share_map:
                     raise ConfigurationError("value '" + ax + "' of attribute '" + self.att.name + "' has no defined share")
                 array.append(self.share_map[ax].build_share (ax, given))
-            return self.normalize(array)
+            return self.att.normalize_list(array)
         for sl in self.share_list:
             if sl.matches(given):
                 return sl.share.build_shares (given)
         if self.share_otherwise is None:
             raise ConfigurationError("no matching for-condition while evaluation shares for " + self.att.name + " in context " + json.dumps(given))
         return self.share_otherwise.build_shares(given)
-
-    def normalize(self, array):
-        total = 0.0
-        rest_at = None
-        i = 0
-        for s in array:
-            if s == -1 and rest_at is None:
-                rest_at = i
-            elif s < 0:
-                raise ConfigurationError("inconsistent shares for attribute " + self.att.name)
-            else:
-                total += s
-            i += 1
-        if rest_at is not None:
-            array[rest_at] = 1.0 - total
-            return array
-        if total == 0:
-            raise ConfigurationError("zero shares for attribute " + self.att.name)
-        elif total < 0.999999 or total > 1.000001:
-            raise ConfigurationError("shares for attribute " + self.att.name + " don't add up to 1")
-        return [a/total for a in array]
 
 
 class ConditionalShares:
@@ -244,9 +300,8 @@ class ShareValue:
             self.value = value
 
     def build_share (self, axvalue:str, given:dict[str,str]):
-        from dynamod.evaluation import evalExpr
         if self.share_list is None:
-            return evalExpr (self.value, self.att.model.context)
+            return self.att.model.evalExpr (self.value)
         for sl in self.share_list:
             if sl.matches(given):
                 return sl.share.build_share (axvalue, given)
@@ -268,30 +323,50 @@ class ConditionalShareValue(ConditionalShares):
 class Partition:
     """a class describing population partition by successively specifying property values"""
 
-    def __init__(self, model, share=1, given:dict=[]):
+    def __init__(self, model, share=1, given={}, slices=None):
         self.model = model
         self.share = share
         self.given = given
+        self.slices = slices
 
-    def normalize(self, share_result):
-        total = 0.0
-        rest_val = None
-        for v, s in share_result.items:
-            if s == -1 and rest_val is None:
-                rest_val = v
-            elif s < 0:
-                raise ConfigurationError("inconsistent shares for property " + self.axis.name)
-            else:
-                total += s
-        if rest_val is not None:
-            share_result[rest_val] = 1.0 - total
-        elif total == 0:
-            raise ConfigurationError("zero shares for property " + self.axis.name)
-        elif total < 0.9999 or total > 1.0001:
-            raise ConfigurationError("shares for property " + self.axis.name + " don't add up to 1")
+    def initialize(self):
+        if self.slices is None:
+            self.slices = [slice(None) for att in self.model.attSystem.attributes]
+
+    def restricted(self, axis, value):
+        try:
+            att = self.model.attSystem.attr_map[axis]
+            value_index = att.values.index(value)
+            slices = self.slices.copy()
+            slices[att.index] = value_index
+        except ValueError:
+            raise ConfigurationError("illegal attribute comparision of " + axis + " with " + value)
+        given = self.given.copy()
+        given[axis] = value
+        return Partition(self.model, self.share, given, slices)
+
+    def with_prob(self, prob):
+        return Partition(self.model, self.share * prob, self.given)
+
+    def set_state(self, axis, value, share=1):
+        att = self.model.attSystem.attr_map[axis]
+        value_index = att.values.index(value)
+        share *= self.share
+        if axis in self.given:
+            if value != self.given[axis]:
+                self.incoming += share * self.segment(att.index, value_index)
+                self.outgoing += share * self.segment()
         else:
-            for v, s in share_result.items:
-                share_result[v] = s / total
+            for src_index in range(len(att.values)):
+                if src_index != value_index:
+                    self.incoming += share * self.segment(att.index, value_index)
+                    self.outgoing += share * self.segment(att.index, src_index)
+
+    def segment(self, dim:None, index:None):
+        slices = self.slices.copy()
+        if dim is not None:
+            slices[dim] = index
+        return self.matrix[tuple(slices)]
 
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
@@ -320,7 +395,7 @@ class FormulaStore(ImmutableMapStore):
             return self.cache[key]
         self.cache[key] = 0
         expr = self.here[key]
-        res = evalExpr(expr, self.model.context)
+        res = self.model.evalExpr(expr)
         self.cache[key] = res
         return res
 
@@ -349,3 +424,45 @@ def get_total(matrix):
     if isinstance(matrix, list):
         return sum([get_total(s) for s in matrix])
     return matrix
+
+def normalize_list(array, name="?", ctx=None):
+    total = 0.0
+    rest_at = None
+    i = 0
+    for s in array:
+        if s == -1 and rest_at is None:
+            rest_at = i
+        elif s < 0:
+            raise ConfigurationError("inconsistent shares for attribute " + name, ctx)
+        else:
+            total += s
+        i += 1
+    if rest_at is not None:
+        array[rest_at] = 1.0 - total
+        return array
+    if total == 0:
+        raise ConfigurationError("zero shares for attribute " + name, ctx)
+    elif total < 0.999999 or total > 1.000001:
+        raise ConfigurationError("shares for attribute " + name + " don't add up to 1", ctx)
+    return [a/total for a in array]
+
+def normalize_map(shares, name="?", ctx=None):
+    total = 0.0
+    rest_val = None
+    for v, s in shares.items:
+        if s == -1 and rest_val is None:
+            rest_val = v
+        elif s < 0:
+            raise ConfigurationError("inconsistent shares for property " + name, ctx)
+        else:
+            total += s
+    if rest_val is not None:
+        shares[rest_val] = 1.0 - total
+    elif total == 0:
+        raise ConfigurationError("zero shares for property " + name, ctx)
+    elif total < 0.9999 or total > 1.0001:
+        raise ConfigurationError("shares for property " + name + " don't add up to 1", ctx)
+    else:
+        for v, s in shares.items:
+            shares[v] = s / total
+

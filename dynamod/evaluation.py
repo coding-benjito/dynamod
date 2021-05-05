@@ -97,7 +97,7 @@ class Evaluator:
                 raise ConfigurationError("illegal comparision", expr.ctx)
             raise ConfigurationError("unknown condition operation(3): " + expr.opcode, expr.ctx)
 
-        raise ConfigurationError("unknown condition rule:" + expr)
+        raise ConfigurationError("unknown condition rule:" + str(expr))
 
     def evalExpr (self, expr):
         if isinstance(expr, int) or isinstance(expr, float) or isinstance(expr, str):
@@ -133,7 +133,7 @@ class Evaluator:
                 prt = self.evalExpr(expr.op1)
                 axis = expr.op2
                 if isinstance(prt, Partition):
-                    if axis in self.model.attributes.attr_map:
+                    if axis in self.model.attSystem.attr_map:
                         return prt.partion_by (axis)
                     raise ConfigurationError("unknown property: " + axis, expr.ctx)
                 raise ConfigurationError("not a partition", expr.ctx)
@@ -143,7 +143,7 @@ class Evaluator:
                 prt = self.evalExpr(expr.op1)
                 cond = expr.op2
                 if isinstance(prt, Partition) and isinstance(cond, DynamodAxisValue):
-                    if cond.axis in self.model.attributes.attr_map:
+                    if cond.axis in self.model.attSystem.attr_map:
                         return prt.partition (cond.axis, cond.value)
                     raise ConfigurationError("unknown property: " + cond.axis, expr.ctx)
                 raise ConfigurationError("illegal partition", expr.ctx)
@@ -164,9 +164,12 @@ class Evaluator:
                 raise ConfigurationError("unknown function call", expr.ctx)
             raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
 
-        raise ConfigurationError("unknown condition rule:" + expr)
+        raise ConfigurationError("unknown expression rule: " + str(expr))
 
 
-def evalExpr (expr, context):
+def evalExpression (expr, context):
     return Evaluator(context).evalExpr(expr)
+
+def evalCondition (expr, context):
+    return Evaluator(context).evalCond(expr)
 
