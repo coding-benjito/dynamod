@@ -139,8 +139,13 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#pexp_item.
-    def visitPexp_item(self, ctx:DynamodParser.Pexp_itemContext):
+    # Visit a parse tree produced by DynamodParser#pexp_for.
+    def visitPexp_for(self, ctx:DynamodParser.Pexp_forContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#pexp_if.
+    def visitPexp_if(self, ctx:DynamodParser.Pexp_ifContext):
         return self.visitChildren(ctx)
 
 

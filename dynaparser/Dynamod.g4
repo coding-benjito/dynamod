@@ -174,7 +174,8 @@ pexp_list:
   ;
   
 pexp_item:
-  FOR condition ':' pexpression
+  FOR condition ':' pexpression           #pexp_for
+  | IF disjunction ':' pexpression        #pexp_if 
   ;
 
 condition: 
@@ -226,7 +227,7 @@ progression_after:
   ;
   
 progression_action:
-  SET axis=expression '=' pstate
+  SET NAME '=' pstate
   ;
 
 pstate:

@@ -153,8 +153,12 @@ class DynamodBuilder(DynamodVisitor):
         return combine_list(self.visit(ctx.pexp_item()), self.visit(ctx.pexp_list()))
 
     # Visit a parse tree produced by DynamodParser#pexp_item.
-    def visitPexp_item(self, ctx:DynamodParser.Pexp_itemContext):
-        return (self.visit(ctx.condition()), self.visit(ctx.pexpression()))
+    def visitPexp_for(self, ctx:DynamodParser.Pexp_forContext):
+        return DynamodCondExp(ctx, 'for', self.visit(ctx.condition()), self.visit(ctx.pexpression()))
+
+    # Visit a parse tree produced by DynamodParser#pexp_if.
+    def visitPexp_if(self, ctx:DynamodParser.Pexp_ifContext):
+        return DynamodCondExp(ctx, 'if', self.visit(ctx.condition()), self.visit(ctx.pexpression()))
 
     # Visit a parse tree produced by DynamodParser#cond_as_axval.
     def visitCond_as_axval(self, ctx:DynamodParser.Cond_as_axvalContext):
@@ -240,7 +244,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#progression_action.
     def visitProgression_action(self, ctx:DynamodParser.Progression_actionContext):
-        return DynamodAction(ctx, self.visit(ctx.axis), self.visit(ctx.pstate()))
+        return DynamodAction(ctx, ctx.NAME().getText(), self.visit(ctx.pstate()))
 
     # Visit a parse tree produced by DynamodParser#pstate_name.
     def visitPstate_name(self, ctx:DynamodParser.Pstate_nameContext):

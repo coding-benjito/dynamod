@@ -13,16 +13,16 @@ class DynaModel:
         self.parameters = {}
         self.results = {}
         self.progressions = {}
+        self.autosplits = {}
         self.attDescs = OrderedDict()
 
     def initialize(self):
         self.baseStore = self.build_basestore()
-        self.partition = Partition(self)
-        self.context = DynaContext(self)
+        self.context = DynaContext(self, Partition(self))
         self.attSystem = AttributeSystem(self)
         for name, attDesc in self.attDescs.items():
             self.attSystem.addAttribute(name, attDesc)
-        self.partition.initialize()
+        self.context.partition.initialize()
         self.matrix = np.array(self.attSystem.build_matrix())
         self.tick = 0
 
@@ -39,15 +39,46 @@ class DynaModel:
         self.srcfile = keep
 
     def step(self):
+        try:
+            self._step()
+        except MissingAxis:
+            self.step()
+
+    def _step(self):
         self.init_step()
         for name, prog in self.progressions.items():
             self.enter_local_context()
             try:
-                self.perform_steps (prog)
-            except Exception as e:
+                self.perform_autosplit_steps (prog, name)
+            except MissingAxis as miss_axis:
+                raise miss_axis
+            except ConfigurationError as e:
                 raise EvaluationError("failed to perform progression " + name) from e
-            self.leave_local_context()
+            finally:
+                self.leave_local_context()
         self.close_step()
+
+    def perform_autosplit_steps (self, prog, name):
+        if name in self.autosplits:
+            splits = self.autosplits[name]
+        else:
+            splits = []
+        try:
+            self.perform_split_steps(prog, splits.copy())
+        except MissingAxis as miss_axis:
+            splits.append(miss_axis.axis)
+            self.autosplits[name] = splits
+            raise miss_axis
+
+    def perform_split_steps (self, prog, splits):
+        if len(splits) == 0:
+            self.perform_steps(prog)
+            return
+        axis = splits.pop()
+        values = self.attSystem.attr_map[axis].values
+        for v in values:
+            self.perform_steps_on(prog, self.context.restricted(axis, v), splits.copy())
+
 
     def enter_local_context(self):
         self.context.values = self.context.values.extended()
@@ -81,14 +112,14 @@ class DynaModel:
 
     def perform_action (self, op:DynamodAction):
         if isinstance(op.state, str):
-            self.partition.set_state(op.axis, op.state)
+            self.set_state(op.axis, op.state)
         elif isinstance(op.state, dict):
             shares = {}
             for state, share in op.state.items():
                 shares[state] = self.evalExpr(share)
             normalize_map(shares, op.axis, op.ctx)
-            for state, share in shares:
-                self.partition.set_state(op.axis, state, share)
+            for state, share in shares.items():
+                self.set_state(op.axis, state, share)
         else:
             raise ConfigurationError("unknown state description: " + op.state, op.ctx)
 
@@ -99,14 +130,13 @@ class DynaModel:
         total_prob = 1
         axes = set()
         axvalues = set()
-        oldPartition = self.partition
         for restr in op.list:
             if restr.type == 'if':
-                is_true = evalCond(restr.cond)
+                is_true = self.evalCond(restr.cond)
                 if not is_true:
                     continue
                 total_prob = 0
-                self.perform_on (restr, oldPartition)
+                self.perform_on (restr, None)
             elif isinstance(restr.cond, DynamodAxisValue):
                 axval = restr.cond
                 axes.add(axval.axis)
@@ -114,34 +144,63 @@ class DynaModel:
                 if isinstance(value, list):
                     axvalues.update(value)
                     for v in value:
-                        self.perform_on (restr, oldPartition.restricted(axval.axis, v))
+                        self.perform_on (restr, self.context.restricted(axval.axis, v))
                 else:
                     value = self.evalExpr(value)
                     axvalues.add(value)
-                    self.perform_on(restr, oldPartition.restricted(axval.axis, value))
+                    self.perform_on(restr, self.context.restricted(axval.axis, value))
             else:
                 prob = self.evalExpr(restr.cond)
                 total_prob -= prob
-                self.perform_on (restr, oldPartition.with_prob(prob))
+                self.perform_on (restr, self.context.with_prob(prob))
 
             if op.otherwise is not None:
                 if total_prob != 1:
                     if len(axes) != 0:
                         raise ConfigurationError("cannot use otherwise after mixed axis/probability restrictions", op.otherwise.ctx)
-                    self.perform_on(restr, oldPartition.with_prob(1-total_prob))
+                    self.perform_on(restr, self.context.with_prob(1-total_prob))
+                    return
                 if len(axes) > 1:
                     raise ConfigurationError("cannot use otherwise after restrictions over multiple axes", op.otherwise.ctx)
                 others = set(self.attSystem.attr_map.keys()) - axvalues
+                axis = axes.pop()
                 for v in others:
-                    self.perform_on(restr, oldPartition.restricted(axes.pop(), v))
+                    self.perform_on(restr, self.context.restricted(axis, v))
 
-        self.partition = oldPartition
-
-    def perform_on(self, restr:DynamodRestriction, part):
+    def perform_on(self, restr:DynamodRestriction, partition):
         if restr.alias is not None:
-            self.context.values.put(restr.alias, part)
-        self.partition = part
-        self.perform_steps(restr.block)
+            self.context.values.put(restr.alias, partition)
+        self.context.push_partition(partition)
+        try:
+            self.perform_steps(restr.block)
+        finally:
+            self.context.pop_partition()
+
+    def perform_steps_on(self, prog:list, partition, splits):
+        self.context.push_partition(partition)
+        try:
+            self.perform_split_steps(prog, splits)
+        finally:
+            self.context.pop_partition()
+
+    def set_state(self, axis, value, share=1):
+        partition = self.context.partition
+        att = self.attSystem.attr_map[axis]
+        value_index = att.values.index(value)
+        share *= partition.share
+        if axis in partition.given:
+            if value != partition.given[axis]:
+                sin = partition.segment(att.index, value_index)
+                sout = partition.segment()
+                self.incoming[sin] += share * self.matrix[sin]
+                self.outgoing[sout] += share * self.matrix[sout]
+        else:
+            for src_index in range(len(att.values)):
+                if src_index != value_index:
+                    sin = partition.segment(att.index, value_index)
+                    sout = partition.segment(att.index, src_index)
+                    self.incoming[sin] += share * self.matrix[sin]
+                    self.outgoing[sout] += share * self.matrix[sout]
 
     def invokeFunc(self, funcname, args):
         pass
@@ -313,12 +372,12 @@ class ShareValue:
 class ConditionalShareValue(ConditionalShares):
     def __init__(self, att:Attribute, condshare):
         self.att = att
-        if isinstance(condshare[0], DynamodAxisValue):
-            self.axis = condshare[0].axis
-            self.value = condshare[0].value
+        if isinstance(condshare.cond, DynamodAxisValue):
+            self.axis = condshare.cond.axis
+            self.value = condshare.cond.value
         else:
             raise ConfigurationError("attribute share can only be switches by axis values", condshare.ctx)
-        self.share = ShareValue(att, condshare[1])
+        self.share = ShareValue(att, condshare.expr)
 
 class Partition:
     """a class describing population partition by successively specifying property values"""
@@ -333,6 +392,12 @@ class Partition:
         if self.slices is None:
             self.slices = [slice(None) for att in self.model.attSystem.attributes]
 
+    def get_axis(self, axis):
+        try:
+            return self.given[axis]
+        except KeyError:
+            raise MissingAxis(axis)
+
     def restricted(self, axis, value):
         try:
             att = self.model.attSystem.attr_map[axis]
@@ -346,27 +411,13 @@ class Partition:
         return Partition(self.model, self.share, given, slices)
 
     def with_prob(self, prob):
-        return Partition(self.model, self.share * prob, self.given)
+        return Partition(self.model, self.share * prob, self.given, self.slices)
 
-    def set_state(self, axis, value, share=1):
-        att = self.model.attSystem.attr_map[axis]
-        value_index = att.values.index(value)
-        share *= self.share
-        if axis in self.given:
-            if value != self.given[axis]:
-                self.incoming += share * self.segment(att.index, value_index)
-                self.outgoing += share * self.segment()
-        else:
-            for src_index in range(len(att.values)):
-                if src_index != value_index:
-                    self.incoming += share * self.segment(att.index, value_index)
-                    self.outgoing += share * self.segment(att.index, src_index)
-
-    def segment(self, dim:None, index:None):
+    def segment(self, dim=None, index=None):
         slices = self.slices.copy()
         if dim is not None:
             slices[dim] = index
-        return self.matrix[tuple(slices)]
+        return tuple(slices)
 
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
@@ -449,7 +500,7 @@ def normalize_list(array, name="?", ctx=None):
 def normalize_map(shares, name="?", ctx=None):
     total = 0.0
     rest_val = None
-    for v, s in shares.items:
+    for v, s in shares.items():
         if s == -1 and rest_val is None:
             rest_val = v
         elif s < 0:
@@ -463,6 +514,6 @@ def normalize_map(shares, name="?", ctx=None):
     elif total < 0.9999 or total > 1.0001:
         raise ConfigurationError("shares for property " + name + " don't add up to 1", ctx)
     else:
-        for v, s in shares.items:
+        for v, s in shares.items():
             shares[v] = s / total
 

@@ -12,6 +12,8 @@ class DynamodExpression:
         try:
             return Evaluator(context).evalExpr(self.expr)
         except Exception as e:
+            if isinstance(e, MissingAxis):
+                raise e
             raise EvaluationError("failed to evaluate '" + self.name + "'", self.srcfile, self.line) from e
 
 class DynamodFunction:
@@ -30,7 +32,7 @@ class DynamodFunction:
             localCtx[n] = v
         try:
             return Evaluator(context.chained_by(localCtx)).evalExpr(self.expr)
-        except Exception as e:
+        except ConfigurationError as e:
             raise EvaluationError("failed to invoke '" + self.name + "'", self.srcfile, self.line) from e
 
 class Evaluator:
@@ -105,8 +107,8 @@ class Evaluator:
 
         if isinstance(expr, UnaryOp):
             if expr.opcode == 'var':
-                if self.context.knows (expr.op):
-                    return self.context.get (expr.op)
+                if self.context.values.knows (expr.op):
+                    return self.context.values.get (expr.op)
                 raise ConfigurationError("unknown variable: " + expr.op, expr.ctx)
             raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
 
@@ -164,8 +166,37 @@ class Evaluator:
                 raise ConfigurationError("unknown function call", expr.ctx)
             raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
 
+        if isinstance(expr, DynamodElseList):
+            return self.eval_restrictions(expr)
+
+        if isinstance(expr, DynamodExpression):
+            return self.evalExpr(expr.expr)
+
         raise ConfigurationError("unknown expression rule: " + str(expr))
 
+    def eval_restrictions (self, op:DynamodElseList):
+        for cond_expr in op.list:
+            if cond_expr.type == 'if':
+                if self.evalCond(cond_expr.cond):
+                    return self.evalExpr (cond_expr.expr)
+            elif isinstance(cond_expr, DynamodCondExp):
+                axis = cond_expr.cond.axis
+                value = cond_expr.cond.value
+                current_value = self.context.partition.get_axis(axis)
+                if isinstance(value, list):
+                    for v in value:
+                        if v == current_value:
+                            return self.evalExpr (cond_expr.expr)
+                else:
+                    value = self.evalExpr(value)
+                    if value == current_value:
+                        return self.evalExpr(cond_expr.expr)
+            else:
+                raise EvaluationError("illegal conditional expression" + str(cond_expr.cond))
+
+        if op.otherwise is None:
+            raise EvaluationError("missing 'otherwise' clause")
+        return self.evalExpr(op.otherwise)
 
 def evalExpression (expr, context):
     return Evaluator(context).evalExpr(expr)

@@ -14,11 +14,9 @@ def get_line(ctx):
         if hasattr(sym, 'line'):
            return sym.line
 
-class EvaluationError(Exception):
-    def __init__(self, message, srcfile=None, line=None):
-        if srcfile is not None and line is not None:
-            message = '[' + srcfile + ':' + line + '] ' + message
-        self.message = message
+class MissingAxis(Exception):
+    def __init__(self, axis):
+        self.axis = axis
 
 class ConfigurationError(Exception):
     def __init__(self, message, ctx=None, line=None, column=None):
@@ -39,6 +37,13 @@ class ConfigurationError(Exception):
                 message = '[' + line + '] ' + message
         self.message = message
 
+class EvaluationError(ConfigurationError):
+    def __init__(self, message, srcfile=None, line=None):
+        if srcfile is not None and line is not None:
+            message = '[' + srcfile + ':' + line + '] ' + message
+        self.message = message
+
+
 DynamodDesc = recordtype('DynamodDesc', ['basis', 'params', 'properties', 'formulas', 'progressions', 'results'], default=None)
 DynamodAttrib = recordtype('DynamodAttrib', ['values', 'shares'])
 DynamodAxisValue  = recordtype('DynamodAxisValue', ['ctx', 'axis', 'value'])
@@ -48,6 +53,7 @@ DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'expression'])
 DynamodAfter = recordtype('DynamodAfter', ['distrib', 'args', 'block'])
 DynamodAction = recordtype('DynamodAction', ['ctx', 'axis', 'state'])
 DynamodRestriction = recordtype('DynamodRestriction', ['ctx', 'type', 'cond', 'block', ('alias',None)])
+DynamodCondExp = recordtype('DynamodCondExp', ['ctx', 'type', 'cond', 'expr'])
 
 TernaryOp = recordtype('TernaryOp', ['ctx', 'opcode', 'op1', 'op2', 'op3'])
 BinaryOp = recordtype('DualOp', ['ctx', 'opcode', 'op1', 'op2'])

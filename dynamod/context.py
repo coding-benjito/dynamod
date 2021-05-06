@@ -1,12 +1,28 @@
 
 class DynaContext:
-    def __init__(self, model, values=None):
+    def __init__(self, model, partition, values=None):
         self.model = model
-        self.partition = model.partition
+        self.partition = partition
+        self.partition_stack = []
         self.values = ChainedStore(model.baseStore) if values == None else values
 
     def chained_by (self, store=None):
-        return DynaContext(self.model, ChainedStore(self.values, store))
+        return DynaContext(self.model, self.partition, ChainedStore(self.values, store))
+
+    def push_partition (self, part):
+        if part is None:
+            part = self.partition
+        self.partition_stack.append(self.partition)
+        self.partition = part
+
+    def pop_partition (self):
+        self.partition = self.partition_stack.pop()
+
+    def restricted(self, axis, value):
+        return self.partition.restricted(axis, value)
+
+    def with_prob(self, prob):
+        return self.partition.with_prob(prob)
 
 class ValueStore:
     def knows (self, key):
@@ -63,7 +79,7 @@ class ChainedStore(ValueStore):
 
 class MapStore(ValueStore):
     def __init__(self, map=None):
-        self.here = [] if map is None else map
+        self.here = {} if map is None else map
 
     def knows (self, key):
         return key in self.here
