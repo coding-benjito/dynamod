@@ -149,23 +149,18 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#cond_as_axval.
-    def visitCond_as_axval(self, ctx:DynamodParser.Cond_as_axvalContext):
+    # Visit a parse tree produced by DynamodParser#seg_as_axval.
+    def visitSeg_as_axval(self, ctx:DynamodParser.Seg_as_axvalContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#cond_as_eq.
-    def visitCond_as_eq(self, ctx:DynamodParser.Cond_as_eqContext):
+    # Visit a parse tree produced by DynamodParser#seg_as_eq.
+    def visitSeg_as_eq(self, ctx:DynamodParser.Seg_as_eqContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#cond_as_in.
-    def visitCond_as_in(self, ctx:DynamodParser.Cond_as_inContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by DynamodParser#cond_as_expr.
-    def visitCond_as_expr(self, ctx:DynamodParser.Cond_as_exprContext):
+    # Visit a parse tree produced by DynamodParser#seg_as_in.
+    def visitSeg_as_in(self, ctx:DynamodParser.Seg_as_inContext):
         return self.visitChildren(ctx)
 
 
@@ -221,6 +216,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#restr_for.
     def visitRestr_for(self, ctx:DynamodParser.Restr_forContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#restr_prob.
+    def visitRestr_prob(self, ctx:DynamodParser.Restr_probContext):
         return self.visitChildren(ctx)
 
 
@@ -344,16 +344,6 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#expval_with.
-    def visitExpval_with(self, ctx:DynamodParser.Expval_withContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by DynamodParser#expval_by.
-    def visitExpval_by(self, ctx:DynamodParser.Expval_byContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by DynamodParser#term_mul.
     def visitTerm_mul(self, ctx:DynamodParser.Term_mulContext):
         return self.visitChildren(ctx)
@@ -419,8 +409,38 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#primary_partition.
+    def visitPrimary_partition(self, ctx:DynamodParser.Primary_partitionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#primary_share.
+    def visitPrimary_share(self, ctx:DynamodParser.Primary_shareContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#primary_name.
     def visitPrimary_name(self, ctx:DynamodParser.Primary_nameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#primary_rel_share.
+    def visitPrimary_rel_share(self, ctx:DynamodParser.Primary_rel_shareContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#part_segment.
+    def visitPart_segment(self, ctx:DynamodParser.Part_segmentContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#part_name.
+    def visitPart_name(self, ctx:DynamodParser.Part_nameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#part_with.
+    def visitPart_with(self, ctx:DynamodParser.Part_withContext):
         return self.visitChildren(ctx)
 
 

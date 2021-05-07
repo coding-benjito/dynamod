@@ -1,5 +1,6 @@
-from collections import namedtuple
 from recordtype import recordtype
+import random
+import string
 
 def is_num (expr):
     return isinstance(expr, int) or isinstance(expr, float)
@@ -13,6 +14,9 @@ def get_line(ctx):
             sym = getattr(ctx, 'start')
         if hasattr(sym, 'line'):
            return sym.line
+
+def get_random_string(length):
+    ''.join(random.choice(string.ascii_letters) for i in range(length))
 
 class MissingAxis(Exception):
     def __init__(self, axis):
@@ -28,13 +32,13 @@ class ConfigurationError(Exception):
                 sym = getattr(ctx, 'start')
             if hasattr(sym, 'line'):
                 line = sym.line
-            if hasattr(sym, column):
+            if hasattr(sym, 'column'):
                 column = sym.column
         if line is not None:
             if column is not None:
-                message = '[' + line + ',' + column + '] ' + message
+                message = '[' + str(line) + ',' + str(column) + '] ' + message
             else:
-                message = '[' + line + '] ' + message
+                message = '[' + str(line) + '] ' + message
         self.message = message
 
 class EvaluationError(ConfigurationError):
@@ -50,13 +54,13 @@ DynamodAxisValue  = recordtype('DynamodAxisValue', ['ctx', 'axis', 'value'])
 DynamodFormula  = recordtype('DynamodFormula', ['ctx', 'name', 'args', 'expr'])
 DynamodElseList = recordtype('DynamodElseList', ['ctx', 'list', 'otherwise'])
 DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'expression'])
-DynamodAfter = recordtype('DynamodAfter', ['distrib', 'args', 'block'])
+DynamodAfter = recordtype('DynamodAfter', ['ctx', 'distrib', 'args', 'block', 'key'])
 DynamodAction = recordtype('DynamodAction', ['ctx', 'axis', 'state'])
 DynamodRestriction = recordtype('DynamodRestriction', ['ctx', 'type', 'cond', 'block', ('alias',None)])
 DynamodCondExp = recordtype('DynamodCondExp', ['ctx', 'type', 'cond', 'expr'])
 
 TernaryOp = recordtype('TernaryOp', ['ctx', 'opcode', 'op1', 'op2', 'op3'])
-BinaryOp = recordtype('DualOp', ['ctx', 'opcode', 'op1', 'op2'])
+BinaryOp = recordtype('BinaryOp', ['ctx', 'opcode', 'op1', 'op2'])
 UnaryOp = recordtype('UnaryOp', ['ctx', 'opcode', 'op'])
 
 

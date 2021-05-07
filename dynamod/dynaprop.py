@@ -1,5 +1,8 @@
 from dynamod.core import *
 from dynamod.evaluation import *
+from dynamod.actionstack import *
+from dynamod.afterdist import *
+from dynamod.partition import Partition
 from collections import OrderedDict
 import json
 import numpy as np
@@ -15,22 +18,32 @@ class DynaModel:
         self.progressions = {}
         self.autosplits = {}
         self.attDescs = OrderedDict()
+        self.trace = False
+        self.ctx_stack = []
 
     def initialize(self):
-        self.baseStore = self.build_basestore()
-        self.context = DynaContext(self, Partition(self))
-        self.attSystem = AttributeSystem(self)
-        for name, attDesc in self.attDescs.items():
-            self.attSystem.addAttribute(name, attDesc)
-        self.context.partition.initialize()
-        self.matrix = np.array(self.attSystem.build_matrix())
-        self.tick = 0
+        try:
+            with Action("initializing model", line=False):
+                self.baseStore = self.build_basestore()
+                self.context = DynaContext(self, Partition(self))
+                self.attSystem = AttributeSystem(self)
+                for name, attDesc in self.attDescs.items():
+                    self.attSystem.addAttribute(name, attDesc)
+                self.context.partition.initialize()
+                self.matrix = np.array(self.attSystem.build_matrix())
+                self.tick = 0
+        except Exception as e:
+            report_actions(e)
+            exit(1)
 
     def evalExpr (self, expr):
         return evalExpression(expr, self.context)
 
     def evalCond(self, expr):
         return evalCondition(expr, self.context)
+
+    def tprint(self, *text):
+        print (*text)
 
     def include(self, path):
         keep = self.srcfile
@@ -40,22 +53,29 @@ class DynaModel:
 
     def step(self):
         try:
-            self._step()
+            with Action("progressions for tick " + str(self.tick), line=False):
+                self._step()
         except MissingAxis:
+            if self.trace:
+                self.tprint("retry step", self.tick)
             self.step()
+        except Exception as e:
+            report_actions(e)
+            exit(1)
 
     def _step(self):
         self.init_step()
         for name, prog in self.progressions.items():
-            self.enter_local_context()
-            try:
-                self.perform_autosplit_steps (prog, name)
-            except MissingAxis as miss_axis:
-                raise miss_axis
-            except ConfigurationError as e:
-                raise EvaluationError("failed to perform progression " + name) from e
-            finally:
-                self.leave_local_context()
+            with Action("perform progression " + name, line=False):
+                self.enter_local_context()
+                if self.trace:
+                    self.tprint("perform", name)
+                try:
+                    self.perform_autosplit_steps (prog, name)
+                except MissingAxis as miss_axis:
+                    raise miss_axis
+                finally:
+                    self.leave_local_context()
         self.close_step()
 
     def perform_autosplit_steps (self, prog, name):
@@ -67,6 +87,8 @@ class DynaModel:
             self.perform_split_steps(prog, splits.copy())
         except MissingAxis as miss_axis:
             splits.append(miss_axis.axis)
+            if self.trace:
+                self.tprint("add axis", miss_axis, "to", name)
             self.autosplits[name] = splits
             raise miss_axis
 
@@ -87,11 +109,14 @@ class DynaModel:
         self.context.values = self.context.values.base
 
     def init_step(self):
-        self.tick += 1
+        self.baseStore.clear_cache()
         self.incoming = np.zeros_like(self.matrix)
         self.outgoing = np.zeros_like(self.matrix)
+        if self.trace:
+            self.tprint("start step", self.tick)
 
     def close_step(self):
+        self.tick += 1
         self.matrix += (self.incoming - self.outgoing)
 
     def perform_steps(self, steps):
@@ -99,16 +124,17 @@ class DynaModel:
             self.perform_step(step)
 
     def perform_step(self, op):
-        if isinstance(op, DynamodElseList):
-            self.perform_restrictions(op)
-        elif isinstance(op, DynamodAfter):
-            pass
-        elif isinstance(op, DynamodAction):
-            self.perform_action (op)
-        elif isinstance(op, DynamodVarDef):
-            self.perform_vardef (op)
-        else:
-            raise ConfigurationError("unknown progression operarion: " + op, op.ctx)
+        with Action(op=op):
+            if isinstance(op, DynamodElseList):
+                self.perform_restrictions(op)
+            elif isinstance(op, DynamodAfter):
+                self.perform_after (op)
+            elif isinstance(op, DynamodAction):
+                self.perform_action (op)
+            elif isinstance(op, DynamodVarDef):
+                self.perform_vardef (op)
+            else:
+                raise ConfigurationError("unknown progression operarion: " + op, op.ctx)
 
     def perform_action (self, op:DynamodAction):
         if isinstance(op.state, str):
@@ -123,6 +149,17 @@ class DynaModel:
         else:
             raise ConfigurationError("unknown state description: " + op.state, op.ctx)
 
+    def perform_after (self, op:DynamodAfter):
+        dist = AfterDistribution.get_distribution(self, op)
+        prob = dist.get_share()
+        with Action("perform after", op=op):
+            self.context.push_partition(self.context.partition.with_prob(prob))
+            try:
+                self.perform_steps(op.block)
+            finally:
+                self.context.pop_partition()
+        return
+
     def perform_vardef (self, op:DynamodVarDef):
         self.context.values.put(op.varname, self.evalExpr(op.expression))
 
@@ -131,28 +168,29 @@ class DynaModel:
         axes = set()
         axvalues = set()
         for restr in op.list:
-            if restr.type == 'if':
-                is_true = self.evalCond(restr.cond)
-                if not is_true:
-                    continue
-                total_prob = 0
-                self.perform_on (restr, None)
-            elif isinstance(restr.cond, DynamodAxisValue):
-                axval = restr.cond
-                axes.add(axval.axis)
-                value = axval.value
-                if isinstance(value, list):
-                    axvalues.update(value)
-                    for v in value:
-                        self.perform_on (restr, self.context.restricted(axval.axis, v))
+            with Action("perform conditional", op=restr):
+                if restr.type == 'if':
+                    is_true = self.evalCond(restr.cond)
+                    if not is_true:
+                        continue
+                    total_prob = 0
+                    self.perform_on (restr, None)
+                elif isinstance(restr.cond, DynamodAxisValue):
+                    axval = restr.cond
+                    axes.add(axval.axis)
+                    value = axval.value
+                    if isinstance(value, list):
+                        axvalues.update(value)
+                        for v in value:
+                            self.perform_on (restr, self.context.restricted(axval.axis, v))
+                    else:
+                        value = self.evalExpr(value)
+                        axvalues.add(value)
+                        self.perform_on(restr, self.context.restricted(axval.axis, value))
                 else:
-                    value = self.evalExpr(value)
-                    axvalues.add(value)
-                    self.perform_on(restr, self.context.restricted(axval.axis, value))
-            else:
-                prob = self.evalExpr(restr.cond)
-                total_prob -= prob
-                self.perform_on (restr, self.context.with_prob(prob))
+                    prob = self.evalExpr(restr.cond)
+                    total_prob -= prob
+                    self.perform_on (restr, self.context.with_prob(prob))
 
             if op.otherwise is not None:
                 if total_prob != 1:
@@ -168,13 +206,14 @@ class DynaModel:
                     self.perform_on(restr, self.context.restricted(axis, v))
 
     def perform_on(self, restr:DynamodRestriction, partition):
-        if restr.alias is not None:
-            self.context.values.put(restr.alias, partition)
-        self.context.push_partition(partition)
-        try:
-            self.perform_steps(restr.block)
-        finally:
-            self.context.pop_partition()
+        with Action("perform segment", op=restr):
+            if restr.alias is not None:
+                self.context.values.put(restr.alias, partition)
+            self.context.push_partition(partition)
+            try:
+                self.perform_steps(restr.block)
+            finally:
+                self.context.pop_partition()
 
     def perform_steps_on(self, prog:list, partition, splits):
         self.context.push_partition(partition)
@@ -184,26 +223,33 @@ class DynaModel:
             self.context.pop_partition()
 
     def set_state(self, axis, value, share=1):
-        partition = self.context.partition
-        att = self.attSystem.attr_map[axis]
-        value_index = att.values.index(value)
-        share *= partition.share
-        if axis in partition.given:
-            if value != partition.given[axis]:
-                sin = partition.segment(att.index, value_index)
-                sout = partition.segment()
-                self.incoming[sin] += share * self.matrix[sin]
-                self.outgoing[sout] += share * self.matrix[sout]
-        else:
-            for src_index in range(len(att.values)):
-                if src_index != value_index:
+        with Action("set " + axis + " to " + value, line=False):
+            partition = self.context.partition
+            att = self.attSystem.attr_map[axis]
+            value_index = att.values.index(value)
+            share *= partition.share
+            if axis in partition.given:
+                if value != partition.given[axis]:
                     sin = partition.segment(att.index, value_index)
-                    sout = partition.segment(att.index, src_index)
-                    self.incoming[sin] += share * self.matrix[sin]
-                    self.outgoing[sout] += share * self.matrix[sout]
+                    sout = partition.segment()
+                    transfer = share * self.matrix[sout]
+                    self.tprint("in (" + partition.describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
+                    self.incoming[sin] += transfer
+                    self.outgoing[sout] += transfer
+            else:
+                for src_index in range(len(att.values)):
+                    if src_index != value_index:
+                        sin = partition.segment(att.index, value_index)
+                        sout = partition.segment(att.index, src_index)
+                        transfer = share * self.matrix[sout]
+                        self.tprint("in (" + partition.restricted(axis, att.values[src_index]).describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
+                        self.incoming[sin] += transfer
+                        self.outgoing[sout] += transfer
 
     def invokeFunc(self, funcname, args):
-        pass
+        if funcname not in self.functions:
+            raise EvaluationError("unknown function: " + funcname)
+        return self.functions[funcname].evaluate (args, self.context)
 
     def build_basestore(self):
         return GlobalStore(self).extendedBy(ImmutableMapStore(self.parameters)).extendedBy(FormulaStore(self))
@@ -224,11 +270,15 @@ class DynaModel:
         self.formulas[name] = DynamodExpression(self, ctx, name, expr)
 
     def addFunc(self, ctx, name, args, expr):
-        self.functions[name] = DynamodFunction(self, ctx, args, name, expr)
+        self.functions[name] = DynamodFunction(self, ctx, name, args, expr)
 
     def addAttribute(self, ctx, name, attdesc:DynamodAttrib):
         self.attDescs[name] = attdesc
 
+    def full_partition(self):
+        part = Partition(self)
+        part.initialize()
+        return part
 
 class AttributeSystem:
     """holds all properties"""
@@ -379,58 +429,20 @@ class ConditionalShareValue(ConditionalShares):
             raise ConfigurationError("attribute share can only be switches by axis values", condshare.ctx)
         self.share = ShareValue(att, condshare.expr)
 
-class Partition:
-    """a class describing population partition by successively specifying property values"""
-
-    def __init__(self, model, share=1, given={}, slices=None):
-        self.model = model
-        self.share = share
-        self.given = given
-        self.slices = slices
-
-    def initialize(self):
-        if self.slices is None:
-            self.slices = [slice(None) for att in self.model.attSystem.attributes]
-
-    def get_axis(self, axis):
-        try:
-            return self.given[axis]
-        except KeyError:
-            raise MissingAxis(axis)
-
-    def restricted(self, axis, value):
-        try:
-            att = self.model.attSystem.attr_map[axis]
-            value_index = att.values.index(value)
-            slices = self.slices.copy()
-            slices[att.index] = value_index
-        except ValueError:
-            raise ConfigurationError("illegal attribute comparision of " + axis + " with " + value)
-        given = self.given.copy()
-        given[axis] = value
-        return Partition(self.model, self.share, given, slices)
-
-    def with_prob(self, prob):
-        return Partition(self.model, self.share * prob, self.given, self.slices)
-
-    def segment(self, dim=None, index=None):
-        slices = self.slices.copy()
-        if dim is not None:
-            slices[dim] = index
-        return tuple(slices)
-
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
         self.model = model
-        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick}
+        self.here = {'ALL': self.all, 'CURRENT': self.current, 'day': self.tick, 'time': self.tick}
 
     def get(self, key):
         if key in self.here:
-            method = getattr(self, self.here[key])
-            return method()
+            return self.here[key]()
 
     def all(self):
-        return Partition(self.model)
+        return self.model.full_partition()
+
+    def current(self):
+        return self.model.context.partition
 
     def tick(self):
         return self.model.tick

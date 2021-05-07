@@ -115,7 +115,7 @@ parameters:
   ;
                  
 parameter:
-  NAME '=' expression NEWLINE
+  NAME ':' expression NEWLINE
   ;
 
 attributes: 
@@ -157,7 +157,7 @@ cond_shares:
   ;
   
 cond_share:
-  FOR condition ':' shares
+  FOR segment ':' shares
   ;
 
 pexpression: 
@@ -174,23 +174,22 @@ pexp_list:
   ;
   
 pexp_item:
-  FOR condition ':' pexpression           #pexp_for
-  | IF disjunction ':' pexpression        #pexp_if 
+  FOR segment ':' pexpression           #pexp_for
+  | IF condition ':' pexpression        #pexp_if 
   ;
 
-condition: 
-  axis=NAME '=' value=NAME                #cond_as_axval
-  | NAME '=' expression                   #cond_as_eq
-  | NAME IN values                        #cond_as_in
-  | expression                            #cond_as_expr
+segment: 
+  axis=NAME '=' value=NAME                #seg_as_axval
+  | NAME '=' expression                   #seg_as_eq
+  | NAME IN values                        #seg_as_in
   ;
              
 values: 
-  OPEN_BRACK vals+=NAME (',' vals+=NAME)* CLOSE_BRACK 
+  OPEN_PAREN vals+=NAME (',' vals+=NAME)* CLOSE_PAREN 
   ;
 
 expression_list: 
-  OPEN_BRACK exprs+=expression (',' exprs+=expression)* CLOSE_BRACK 
+  OPEN_PAREN exprs+=expression (',' exprs+=expression)* CLOSE_PAREN 
   ;
 
 progressions: 
@@ -218,8 +217,9 @@ progression_statement:
   ;
   
 restriction:
-  FOR (NAME AS)? condition ':' progression_block #restr_for   
-  | IF disjunction ':' progression_block  #restr_if 
+  FOR (NAME AS)? segment ':' progression_block #restr_for   
+  | FOR (NAME AS)? expression ':' progression_block #restr_prob   
+  | IF condition ':' progression_block  #restr_if 
   ;
   
 progression_after:
@@ -262,11 +262,11 @@ variable_definition:
   ;
   
 expression:
-  IF disjunction expval ELSE expression   #expr_ifelse
+  IF condition expval ELSE expression   #expr_ifelse
   | expval                                #expr_value
   ;
   
-disjunction:
+condition:
   conds+=conjunction (OR conds+=conjunction )+ #disj_ors
   | conjunction                           #disj_one
   ;
@@ -275,6 +275,7 @@ conjunction:
   conds+=comparison (AND conds+=comparison)+     #conj_ands
   | comparison                            #conj_comp
   ;
+  
   
 comparison:
   op1=expval op=(LT|LE|GT|GE|EQ|NE) op2=expval #comp_two_ops
@@ -285,8 +286,6 @@ comparison:
 expval:
   expval '+' term                         #expval_add
   | expval '-' term                       #expval_sub
-  | expval WITH condition                 #expval_with
-  | expval BY NAME                        #expval_by
   | term                                  #expval_term
   ;
   
@@ -307,10 +306,19 @@ factor:
   ;
 
 primary:
-  primary '.' NAME                        #primary_dot
+  primary '.' NAME                                      #primary_dot
   | NAME OPEN_PAREN arguments? CLOSE_PAREN              #primary_func
   | primary '.' NAME OPEN_PAREN arguments? CLOSE_PAREN  #primary_method
-  | NAME                                  #primary_name
+  | NAME                                                #primary_name
+  | partition                                           #primary_partition
+  | OPEN_BRACK partition CLOSE_BRACK                    #primary_share
+  | OPEN_BRACK part=partition '|' base=partition CLOSE_BRACK      #primary_rel_share
+  ;
+
+partition:
+  NAME                                    #part_name  
+  | segment                               #part_segment
+  | partition WITH segment                #part_with
   ;
   
 arguments: 

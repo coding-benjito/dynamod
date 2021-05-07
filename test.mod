@@ -2,35 +2,35 @@
 
 parameters:
 ###########
-  asymptomatic_share = 18.4%
-  f_asymptomatic = 0.231         #factor for infectiousness relative to symptomatic
-  f_presymptomatic = 0.692       #factor for infectiousness relative to symptomatic
-  factor_when_quarantined = 0.05 #factor for infectiousness relative to unquarantined
+  asymptomatic_share: 18.4%
+  f_asymptomatic : 0.231         #factor for infectiousness relative to symptomatic
+  f_presymptomatic : 0.692       #factor for infectiousness relative to symptomatic
+  factor_when_quarantined : 0.05 #factor for infectiousness relative to unquarantined
   
-  contacts_kid_kid = 5           #contact frequency between age groups
-  contacts_kid_adult = 2
-  contacts_kid_old = 0.5
-  contacts_adult_adult = 3
-  contacts_adult_old = 1
-  contacts_old_old = 2
+  contacts_kid_kid : 5           #contact frequency between age groups
+  contacts_kid_adult : 2
+  contacts_kid_old : 0.5
+  contacts_adult_adult : 3
+  contacts_adult_old : 1
+  contacts_old_old : 2
 
-  infections_per_contact = 0.2
+  infections_per_contact : 0.2
   
 attributes:
 ###########
   age:
-    values: [kid, adult, old]
-    shares: [17%, 60%,   23%]
+    values: (kid, adult, old)
+    shares: (17%, 60%,   23%)
 
   risk:
-    values: [high, moderate, low]
+    values: (high, moderate, low)
     shares:
-      for age=kid: [5%, %%, 70%]      # '%%' stands for the rest to reach 100%
-      for age=old: [60%, %%, 8%]
-      otherwise: [18%, %%, 20%]
+      for age=kid: (5%, %%, 70%)      # '%%' stands for the rest to reach 100%
+      for age=old: (60%, %%, 8%)
+      otherwise: (18%, %%, 20%)
 
   state:
-    values: [susceptible, exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, dead, recovered]
+    values: (susceptible, exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, dead, recovered)
     shares:                               
       susceptible: 90%
       recovered: 6%
@@ -51,9 +51,9 @@ attributes:
       dead: 0
 
   quarantined:
-    values: [yes, no]
+    values: (yes, no)
     shares:
-      for state in [exposed, asymptomatic, presymptomatic]:
+      for state in (exposed, asymptomatic, presymptomatic):
         yes: 10%
         no: 90%
       for state=symptomatic:
@@ -72,14 +72,12 @@ formulas:
   Kids: ALL with age=kid
   Adults: ALL with age=adult
   Olds: ALL with age=old
-  infected(X): X.share(X with state=symptomatic) \
-               + f_asymptomatic * X.share(X with state=asymptomatic) \
-               + f_presymptomatic * X.share(X with state=presymptomatic)
+  infected(X): [state=symptomatic|X] + f_asymptomatic*[state=asymptomatic|X] + f_presymptomatic*[state=presymptomatic|X]
   force(X): infected(X with quarantined=no) + factor_when_quarantined * infected(X with quarantined=yes)
   force_of_infection: 
-    for age=kid: contact_kid_kid * force(Kids) + contact_kid_adult * force(Adults) + contact_kid_old * force(Old)
-    for age=adult: contact_kid_adult * force(Kids) + contact_adult_adult * force(Adults) + contact_adult_old * force(Old)
-    for age=old: contact_kid_old * force(Kids) + contact_adult_old * force(Adults) + contact_old_old * force(Old)
+    for age=kid: contacts_kid_kid * force(Kids) + contacts_kid_adult * force(Adults) + contacts_kid_old * force(Olds)
+    for age=adult: contacts_kid_adult * force(Kids) + contacts_adult_adult * force(Adults) + contacts_adult_old * force(Olds)
+    for age=old: contacts_kid_old * force(Kids) + contacts_adult_old * force(Adults) + contacts_old_old * force(Olds)
   infection_probability: infections_per_contact * force_of_infection
   Yesterday: ALL.before(1)
 
@@ -166,7 +164,7 @@ progressions:
   put_in_quarantine:
     #infection is reported, people are put in quarantine
     for quarantined=no:
-      for state in [exposed, asymptomatic, presymptomatic]:
+      for state in (exposed, asymptomatic, presymptomatic):
         for 10%:                        # each day there is a 10% chance of reporting the case
           set quarantined=yes
       for state=symptomatic:
@@ -175,6 +173,6 @@ progressions:
           
 results:
 ########
-  dead_kids = TotalPersons * ALL.share(ALL with state=dead with age=kid)
-  r = 5.2 * ALL.share(ALL with state=exposed) / Yesterday.share(Yesterday with state=exposed)
+  dead_kids = [state=dead with age=kid]
+  r = 5.2 * [state=exposed] / [Yesterday with state=exposed]
 

@@ -1,5 +1,7 @@
 from dynamod.core import *
 from dynamod.context import *
+from dynamod.actionstack import Action
+from dynamod.partition import Partition
 
 class DynamodExpression:
     def __init__(self, model, ctx, name, expr):
@@ -9,12 +11,8 @@ class DynamodExpression:
         self.expr = expr
 
     def evaluate(self, context:DynaContext):
-        try:
+        with Action("evaluate expression " + self.name, line=self.line):
             return Evaluator(context).evalExpr(self.expr)
-        except Exception as e:
-            if isinstance(e, MissingAxis):
-                raise e
-            raise EvaluationError("failed to evaluate '" + self.name + "'", self.srcfile, self.line) from e
 
 class DynamodFunction:
     def __init__(self, model, ctx, name, args, expr):
@@ -25,15 +23,13 @@ class DynamodFunction:
         self.expr = expr
 
     def evaluate(self, params, context:DynaContext):
-        if not isinstance(params, list) or len(params) != len(self.args):
-            raise EvaluationError("failed to invoke '" + self.name + "', wrong number of arguments", self.srcfile, self.line)
-        localCtx = MapStore()
-        for n,v in zip(self.args, params):
-            localCtx[n] = v
-        try:
+        with Action("evaluate function " + self.name, line=self.line):
+            if not isinstance(params, list) or len(params) != len(self.args):
+                raise EvaluationError("failed to invoke '" + self.name + "', wrong number of arguments", self.srcfile, self.line)
+            localCtx = MapStore()
+            for n,v in zip(self.args, params):
+                localCtx.put(n, v)
             return Evaluator(context.chained_by(localCtx)).evalExpr(self.expr)
-        except ConfigurationError as e:
-            raise EvaluationError("failed to invoke '" + self.name + "'", self.srcfile, self.line) from e
 
 class Evaluator:
     def __init__(self, context:DynaContext):
@@ -67,136 +63,152 @@ class Evaluator:
         raise ConfigurationError("unknown calculation operator: " + opcode)
 
     def evalCond (self, expr):
-        if isinstance(expr, UnaryOp):
-            if expr.opcode == 'or':
-                for sub in expr.op:
-                    if self.evalCond (sub):
-                        return True
-                return False
-            if expr.opcode == 'and':
-                for sub in expr.op:
-                    if not self.evalCond (sub):
-                        return False
-                return True
-            if expr.opcode == 'not':
-                return not self.evalCond (expr.op)
-            raise ConfigurationError("unknown condition operation(1): " + expr.opcode, expr.ctx)
+        with Action("evaluate condition", op=expr):
+            if isinstance(expr, UnaryOp):
+                if expr.opcode == 'or':
+                    for sub in expr.op:
+                        if self.evalCond (sub):
+                            return True
+                    return False
+                if expr.opcode == 'and':
+                    for sub in expr.op:
+                        if not self.evalCond (sub):
+                            return False
+                    return True
+                if expr.opcode == 'not':
+                    return not self.evalCond (expr.op)
+                raise ConfigurationError("unknown condition operation(1): " + expr.opcode, expr.ctx)
 
-        if isinstance(expr, BinaryOp):
-            op1 = self.evalExpr(expr.op1)
-            op2 = self.evalExpr(expr.op2)
-            if is_num(op1) and is_num(op2):
-                return self.evalComparison (expr.opcode, op1, op2)
-            raise ConfigurationError("illegal comparision", expr.ctx)
-
-        if isinstance(expr, TernaryOp):
-            if expr.opcode == 'between':
-                val = self.evalExpr(expr.op1)
-                limFrom = self.evalExpr(expr.op2)
-                limTo = self.evalExpr(expr.op3)
-                if is_num(val) and is_num(limFrom) and is_num(limTo):
-                    return self.evalComparison('>=', val, limFrom) and self.evalComparison('<=', val, limTo)
+            if isinstance(expr, BinaryOp):
+                op1 = self.evalExpr(expr.op1)
+                op2 = self.evalExpr(expr.op2)
+                if is_num(op1) and is_num(op2):
+                    return self.evalComparison (expr.opcode, op1, op2)
                 raise ConfigurationError("illegal comparision", expr.ctx)
-            raise ConfigurationError("unknown condition operation(3): " + expr.opcode, expr.ctx)
 
-        raise ConfigurationError("unknown condition rule:" + str(expr))
+            if isinstance(expr, TernaryOp):
+                if expr.opcode == 'between':
+                    val = self.evalExpr(expr.op1)
+                    limFrom = self.evalExpr(expr.op2)
+                    limTo = self.evalExpr(expr.op3)
+                    if is_num(val) and is_num(limFrom) and is_num(limTo):
+                        return self.evalComparison('>=', val, limFrom) and self.evalComparison('<=', val, limTo)
+                    raise ConfigurationError("illegal comparision", expr.ctx)
+                raise ConfigurationError("unknown condition operation(3): " + expr.opcode, expr.ctx)
+
+            raise ConfigurationError("unknown condition rule:" + str(expr))
 
     def evalExpr (self, expr):
         if isinstance(expr, int) or isinstance(expr, float) or isinstance(expr, str):
             return expr
 
-        if isinstance(expr, UnaryOp):
-            if expr.opcode == 'var':
-                if self.context.values.knows (expr.op):
-                    return self.context.values.get (expr.op)
-                raise ConfigurationError("unknown variable: " + expr.op, expr.ctx)
-            raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
+        with Action("evaluate expression", op=expr):
+            if isinstance(expr, UnaryOp):
+                if expr.opcode == 'var':
+                    if self.context.values.knows (expr.op):
+                        return self.context.values.get (expr.op)
+                    raise ConfigurationError("unknown variable: " + expr.op, expr.ctx)
+                raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
 
-        if isinstance(expr, BinaryOp):
-            if expr.opcode in ['+', '-', '*', '/']:
-                op1 = self.evalExpr(expr.op1)
-                op2 = self.evalExpr(expr.op2)
-                if is_num(op1) and is_num(op2):
-                    return self.evalCalculate (expr.opcode, op1, op2)
-                raise ConfigurationError("illegal calculation", expr.ctx)
-            if expr.opcode == 'func':
-                args = []
-                if expr.op2 is not None:
-                    for op in expr.op2:
-                        args.append(self.evalExpr(op))
-                return self.model.invokeFunc (expr.op1, args)
-            if expr.opcode == 'dot':
-                op1 = self.evalExpr(expr.op1)
-                if hasattr(op1, expr.op2):
-                    return getattr(op1, expr.op2)
-                raise ConfigurationError("unknown field " + expr.op2, expr.ctx)
-            if expr.opcode == 'by':
-                from dynamod.dynaprop import Partition
-                prt = self.evalExpr(expr.op1)
-                axis = expr.op2
-                if isinstance(prt, Partition):
-                    if axis in self.model.attSystem.attr_map:
-                        return prt.partion_by (axis)
-                    raise ConfigurationError("unknown property: " + axis, expr.ctx)
-                raise ConfigurationError("not a partition", expr.ctx)
+            if isinstance(expr, BinaryOp):
+                if expr.opcode in ['+', '-', '*', '/']:
+                    op1 = self.evalExpr(expr.op1)
+                    op2 = self.evalExpr(expr.op2)
+                    if is_num(op1) and is_num(op2):
+                        return self.evalCalculation (expr.opcode, op1, op2)
+                    raise ConfigurationError("illegal calculation operands: " + str(op1) + expr.opcode + str(op2), expr.ctx)
+                if expr.opcode == 'func':
+                    args = []
+                    if expr.op2 is not None:
+                        for op in expr.op2:
+                            args.append(self.evalExpr(op))
+                    return self.model.invokeFunc (expr.op1, args)
+                if expr.opcode == 'dot':
+                    op1 = self.evalExpr(expr.op1)
+                    if hasattr(op1, expr.op2):
+                        return getattr(op1, expr.op2)
+                    raise ConfigurationError("unknown field " + expr.op2, expr.ctx)
+                if expr.opcode == 'with':
+                    if expr.op1 is None:
+                        if self.context.values.knows('_SHARE_BASE'):
+                            part = self.context.values.get('_SHARE_BASE')
+                        else:
+                            part = self.model.full_partition()
+                    else:
+                        part = self.evalExpr(expr.op1)
+                        if not isinstance(part, Partition):
+                            raise ConfigurationError("base of with-operator must be a partition", expr.ctx)
+                    axval = expr.op2
+                    if isinstance(axval.value, list):
+                        value = [self.evalExpr(v) for v in axval.value]
+                    else:
+                        value = self.evalExpr(axval.value)
+                    return part.restricted(axval.axis, value)
+                if expr.opcode == 'share':
+                    if expr.op2 is not None:
+                        base = self.evalExpr(expr.op2)
+                        if not isinstance(base, Partition):
+                            raise ConfigurationError("base of [...|...] must be a partition", expr.ctx)
+                        self.context.values.put('_SHARE_BASE', base)
+                    part = self.evalExpr(expr.op1)
+                    if not isinstance(part, Partition):
+                        raise ConfigurationError("expression in [...] must be a partition", expr.ctx)
+                    if expr.op2 is not None:
+                        self.context.values.delete('_SHARE_BASE')
+                    share = part.total()
+                    if expr.op2 is not None:
+                        share /= base.total()
+                    return share
 
-            if expr.opcode == 'with':
-                from dynamod.dynaprop import Partition
-                prt = self.evalExpr(expr.op1)
-                cond = expr.op2
-                if isinstance(prt, Partition) and isinstance(cond, DynamodAxisValue):
-                    if cond.axis in self.model.attSystem.attr_map:
-                        return prt.partition (cond.axis, cond.value)
-                    raise ConfigurationError("unknown property: " + cond.axis, expr.ctx)
-                raise ConfigurationError("illegal partition", expr.ctx)
-            raise ConfigurationError("unknown expression operation(2): " + expr.opcode, expr.ctx)
+                raise ConfigurationError("unknown expression operation(2): " + expr.opcode, expr.ctx)
 
-        if isinstance(expr, TernaryOp):
-            if expr.opcode == 'func':
-                args = []
-                if expr.op3 is not None:
-                    for op in expr.op3:
-                        args.append(self.evalExpr(op))
-                obj = self.evalExpr(expr.op1)
-                methodname = expr.op2
-                if hasattr(obj, methodname):
-                    method = getattr(obj, methodname)
-                    if callable(method):
-                        return method(*args)
-                raise ConfigurationError("unknown function call", expr.ctx)
-            raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
+            if isinstance(expr, TernaryOp):
+                if expr.opcode == 'func':
+                    args = []
+                    if expr.op3 is not None:
+                        for op in expr.op3:
+                            args.append(self.evalExpr(op))
+                    obj = self.evalExpr(expr.op1)
+                    methodname = expr.op2
+                    if hasattr(obj, methodname):
+                        method = getattr(obj, methodname)
+                        if callable(method):
+                            return method(*args)
+                    raise ConfigurationError("unknown function call", expr.ctx)
+                raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
 
-        if isinstance(expr, DynamodElseList):
-            return self.eval_restrictions(expr)
+            if isinstance(expr, DynamodElseList):
+                return self.eval_restrictions(expr)
 
-        if isinstance(expr, DynamodExpression):
-            return self.evalExpr(expr.expr)
+            if isinstance(expr, DynamodExpression):
+                return self.evalExpr(expr.expr)
 
-        raise ConfigurationError("unknown expression rule: " + str(expr))
+            raise ConfigurationError("unknown expression rule: " + str(expr))
 
     def eval_restrictions (self, op:DynamodElseList):
-        for cond_expr in op.list:
-            if cond_expr.type == 'if':
-                if self.evalCond(cond_expr.cond):
-                    return self.evalExpr (cond_expr.expr)
-            elif isinstance(cond_expr, DynamodCondExp):
-                axis = cond_expr.cond.axis
-                value = cond_expr.cond.value
-                current_value = self.context.partition.get_axis(axis)
-                if isinstance(value, list):
-                    for v in value:
-                        if v == current_value:
-                            return self.evalExpr (cond_expr.expr)
+        with Action("evaluate conditional expression", op=op):
+            for cond_expr in op.list:
+                if cond_expr.type == 'if':
+                    if self.evalCond(cond_expr.cond):
+                        return self.evalExpr (cond_expr.expr)
+                elif isinstance(cond_expr, DynamodCondExp):
+                    axis = cond_expr.cond.axis
+                    value = cond_expr.cond.value
+                    if isinstance(value, list):
+                        for v in value:
+                            v = self.evalExpr(v)
+                            if self.context.partition.has_segment(axis, v):
+                                return self.evalExpr (cond_expr.expr)
+                    else:
+                        value = self.evalExpr(value)
+                        if self.context.partition.has_segment(axis, value):
+                            return self.evalExpr(cond_expr.expr)
                 else:
-                    value = self.evalExpr(value)
-                    if value == current_value:
-                        return self.evalExpr(cond_expr.expr)
-            else:
-                raise EvaluationError("illegal conditional expression" + str(cond_expr.cond))
+                    raise EvaluationError("illegal conditional expression" + str(cond_expr.cond))
 
-        if op.otherwise is None:
-            raise EvaluationError("missing 'otherwise' clause")
-        return self.evalExpr(op.otherwise)
+            if op.otherwise is None:
+                raise EvaluationError("missing 'otherwise' clause")
+            return self.evalExpr(op.otherwise)
 
 def evalExpression (expr, context):
     return Evaluator(context).evalExpr(expr)
