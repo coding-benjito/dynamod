@@ -174,5 +174,6 @@ progressions:
 results:
 ########
   dead_kids = [state=dead with age=kid]
+  exposed = [state=exposed]
   r = 5.2 * [state=exposed] / [Yesterday with state=exposed]
 

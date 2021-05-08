@@ -2,7 +2,9 @@ from dynamod.core import *
 from dynamod.evaluation import *
 from dynamod.actionstack import *
 from dynamod.afterdist import *
+from dynamod.checks import *
 from dynamod.partition import Partition
+from dynamod.history import History
 from collections import OrderedDict
 import json
 import numpy as np
@@ -15,10 +17,12 @@ class DynaModel:
         self.functions = {}
         self.parameters = {}
         self.results = {}
-        self.progressions = {}
+        self.progressions = OrderedDict()
         self.autosplits = {}
         self.attDescs = OrderedDict()
         self.trace = False
+        self.check = False
+        self.trace_for = None
         self.ctx_stack = []
 
     def initialize(self):
@@ -32,6 +36,9 @@ class DynaModel:
                 self.context.partition.initialize()
                 self.matrix = np.array(self.attSystem.build_matrix())
                 self.tick = 0
+                self.trace_val = None if self.trace_for is None else self.matrix[self.trace_for]
+                self.history = History(self)
+                self.history.store()
         except Exception as e:
             report_actions(e)
             exit(1)
@@ -43,7 +50,8 @@ class DynaModel:
         return evalCondition(expr, self.context)
 
     def tprint(self, *text):
-        print (*text)
+        if self.trace:
+            print (*text)
 
     def include(self, path):
         keep = self.srcfile
@@ -56,8 +64,8 @@ class DynaModel:
             with Action("progressions for tick " + str(self.tick), line=False):
                 self._step()
         except MissingAxis:
-            if self.trace:
-                self.tprint("retry step", self.tick)
+            self.tprint("retry step", self.tick)
+            self.trace_val = None if self.trace_for is None else self.matrix[self.trace_for]
             self.step()
         except Exception as e:
             report_actions(e)
@@ -68,8 +76,7 @@ class DynaModel:
         for name, prog in self.progressions.items():
             with Action("perform progression " + name, line=False):
                 self.enter_local_context()
-                if self.trace:
-                    self.tprint("perform", name)
+                self.tprint("perform", name)
                 try:
                     self.perform_autosplit_steps (prog, name)
                 except MissingAxis as miss_axis:
@@ -87,8 +94,7 @@ class DynaModel:
             self.perform_split_steps(prog, splits.copy())
         except MissingAxis as miss_axis:
             splits.append(miss_axis.axis)
-            if self.trace:
-                self.tprint("add axis", miss_axis, "to", name)
+            self.tprint("add axis", miss_axis, "to", name)
             self.autosplits[name] = splits
             raise miss_axis
 
@@ -112,12 +118,14 @@ class DynaModel:
         self.baseStore.clear_cache()
         self.incoming = np.zeros_like(self.matrix)
         self.outgoing = np.zeros_like(self.matrix)
-        if self.trace:
-            self.tprint("start step", self.tick)
+        self.tprint("start step", self.tick)
 
     def close_step(self):
-        self.tick += 1
+        print('.', end='')
         self.matrix += (self.incoming - self.outgoing)
+        self.tick += 1
+        self.history.keep_track()
+        self.history.store()
 
     def perform_steps(self, steps):
         for step in steps:
@@ -150,10 +158,9 @@ class DynaModel:
             raise ConfigurationError("unknown state description: " + op.state, op.ctx)
 
     def perform_after (self, op:DynamodAfter):
-        dist = AfterDistribution.get_distribution(self, op)
-        prob = dist.get_share()
+        after = AfterDistribution.get_distribution(self, op)
         with Action("perform after", op=op):
-            self.context.push_partition(self.context.partition.with_prob(prob))
+            self.context.push_partition(self.context.partition.with_after(after))
             try:
                 self.perform_steps(op.block)
             finally:
@@ -228,23 +235,40 @@ class DynaModel:
             att = self.attSystem.attr_map[axis]
             value_index = att.values.index(value)
             share *= partition.share
+            from_values = None
             if axis in partition.given:
-                if value != partition.given[axis]:
+                if not partition.has_segment(axis, value):
                     sin = partition.segment(att.index, value_index)
                     sout = partition.segment()
-                    transfer = share * self.matrix[sout]
-                    self.tprint("in (" + partition.describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
+                    transfer = share * partition.transfer()
+                    if self.trace and self.trace_for is None:
+                        self.tprint("in (" + partition.describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
                     self.incoming[sin] += transfer
                     self.outgoing[sout] += transfer
+                    if self.trace_for is not None:
+                        check_changes(self)
+                    if self.check:
+                        check_nonnegatives(self)
+                else:
+                    from_values = partition.given[att.index]
             else:
-                for src_index in range(len(att.values)):
+                from_values = att.values
+            if from_values is not None:
+                for from_value in from_values:
+                    src_index = att.values.index(from_value)
                     if src_index != value_index:
                         sin = partition.segment(att.index, value_index)
                         sout = partition.segment(att.index, src_index)
-                        transfer = share * self.matrix[sout]
-                        self.tprint("in (" + partition.restricted(axis, att.values[src_index]).describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
+                        from_partition = partition.restricted(axis, from_value)
+                        transfer = share * from_partition.transfer()
+                        if self.trace and self.trace_for is None:
+                            self.tprint("in (" + from_partition.describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
                         self.incoming[sin] += transfer
                         self.outgoing[sout] += transfer
+                        if self.trace_for is not None:
+                            check_changes(self)
+                        if self.check:
+                            check_nonnegatives(self)
 
     def invokeFunc(self, funcname, args):
         if funcname not in self.functions:

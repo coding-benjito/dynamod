@@ -16,7 +16,14 @@ def get_line(ctx):
            return sym.line
 
 def get_random_string(length):
-    ''.join(random.choice(string.ascii_letters) for i in range(length))
+    return ''.join(random.choice(string.ascii_letters) for i in range(length))
+
+def deslice(org):
+    return tuple([None if x == slice(None) else x for x in org])
+
+def reslice(org):
+    return tuple([slice(None) if x is None else x for x in org])
+
 
 class MissingAxis(Exception):
     def __init__(self, axis):

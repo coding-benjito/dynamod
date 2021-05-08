@@ -3,11 +3,13 @@ from dynamod.core import *
 class Partition:
     """a class describing population partition by successively specifying property values"""
 
-    def __init__(self, model, share=1, given={}, slices=None):
+    def __init__(self, model, share=1, given={}, slices=None, after=None, tbefore=None):
         self.model = model
         self.share = share
         self.given = given
+        self.after = after
         self.slices = slices
+        self.tbefore = tbefore
 
     def initialize(self):
         if self.slices is None:
@@ -39,10 +41,18 @@ class Partition:
             raise ConfigurationError("illegal attribute comparision of " + axis + " with " + value)
         given = self.given.copy()
         given[axis] = value
-        return Partition(self.model, self.share, given, slices)
+        return Partition(self.model, self.share, given, slices, self.after, self.tbefore)
 
     def with_prob(self, prob):
-        return Partition(self.model, self.share * prob, self.given, self.slices)
+        return Partition(self.model, self.share * prob, self.given, self.slices, self.after, self.tbefore)
+
+    def with_after(self, after):
+        return Partition(self.model, self.share, self.given, self.slices, after, self.tbefore)
+
+    def before(self, tbefore):
+        if isinstance(tbefore, int):
+            return Partition(self.model, self.share, self.given, self.slices, self.after, tbefore)
+        raise ConfigurationError("argument of .tbefore() must be int")
 
     def segment(self, dim=None, index=None):
         slices = self.slices.copy()
@@ -58,7 +68,18 @@ class Partition:
             text += "ALL"
         else:
             text += str(self.given)
+        if self.after is not None:
+            text += " " + self.after.describe()
+        if self.tbefore is not None:
+            text += " tbefore " + self.tbefore
         return text
 
+    def transfer(self):
+        if self.after is None:
+            if self.tbefore is None or self.tbefore > self.model.tick:
+                return self.model.matrix[self.segment()]
+            return self.model.history.matrix[self.model.tick - self.tbefore][self.segment()]
+        return self.after.get_share(self.segment())
+
     def total(self):
-        return self.model.matrix[self.segment()].sum()
+        return self.transfer().sum()

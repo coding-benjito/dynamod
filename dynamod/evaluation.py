@@ -163,7 +163,7 @@ class Evaluator:
                 raise ConfigurationError("unknown expression operation(2): " + expr.opcode, expr.ctx)
 
             if isinstance(expr, TernaryOp):
-                if expr.opcode == 'func':
+                if expr.opcode == 'method':
                     args = []
                     if expr.op3 is not None:
                         for op in expr.op3:
@@ -174,7 +174,8 @@ class Evaluator:
                         method = getattr(obj, methodname)
                         if callable(method):
                             return method(*args)
-                    raise ConfigurationError("unknown function call", expr.ctx)
+                    raise ConfigurationError("unknown method '" + methodname + "' on " + str(obj), expr.ctx)
+
                 raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
 
             if isinstance(expr, DynamodElseList):
