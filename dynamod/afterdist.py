@@ -31,6 +31,12 @@ class AfterDistribution:
         self.sections = [x * full for x in self.timeshares]
         self.incoming = np.zeros(self.shape)
         self.outgoing = np.zeros(self.shape)
+        if model.check:
+            self.check()
+
+    def reset(self):
+        self.incoming = np.zeros(self.shape)
+        self.outgoing = np.zeros(self.shape)
 
     def calc_rfactor (self, timeshares):
         r = 0
@@ -55,14 +61,20 @@ class AfterDistribution:
         self.sections.append (np.zeros(self.shape))
         for i in range(len(self.timeshares)):
             self.sections[i] += self.timeshares[i] * self.incoming
-        self.incoming = np.zeros(self.shape)
         f = np.zeros(self.shape)
-        matrix = self.model.matrix[self.segment]
-        np.divide(matrix - self.outgoing, matrix, out=f, where=matrix!=0)
+        all = sum(self.sections)
+        np.divide(all - self.outgoing, all, out=f, where=all>0)
         for i in range(len(self.timeshares)):
             self.sections[i] *= f
         self.incoming = np.zeros(self.shape)
         self.outgoing = np.zeros(self.shape)
+
+    def check(self):
+        res = self.model.matrix[self.segment].copy()
+        for section in self.sections:
+            res -= section
+        if np.amin(res) < -0.00000001:
+            raise EvaluationError("after-distribution corrupted")
 
     @staticmethod
     def after_fix(delay):
@@ -72,10 +84,12 @@ class AfterDistribution:
             delay = 1
         len = math.ceil(delay)
         timeshares = [0 for i in range(len)]
-        timeshares[-1] = delay - len
-        rest = 1 + len - delay
-        if rest > 0:
+        if len > delay:
+            timeshares[-1] = len - delay
+            rest = 1 + delay - len
             timeshares[-2] = rest
+        else:
+            timeshares[-1] = 1
         return timeshares
 
     @staticmethod
@@ -118,3 +132,13 @@ class AfterDistribution:
     def apply_afters():
         for adist in AfterDistribution.distributions.values():
             adist.apply()
+
+    @staticmethod
+    def apply_checks():
+        for adist in AfterDistribution.distributions.values():
+            adist.check()
+
+    @staticmethod
+    def reset_all():
+        for adist in AfterDistribution.distributions.values():
+            adist.reset()

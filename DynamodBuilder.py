@@ -158,7 +158,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#pexp_if.
     def visitPexp_if(self, ctx:DynamodParser.Pexp_ifContext):
-        return DynamodCondExp(ctx, 'if', self.visit(ctx.segment()), self.visit(ctx.pexpression()))
+        return DynamodCondExp(ctx, 'if', self.visit(ctx.condition()), self.visit(ctx.pexpression()))
 
     # Visit a parse tree produced by DynamodParser#seg_as_axval.
     def visitSeg_as_axval(self, ctx:DynamodParser.Seg_as_axvalContext):

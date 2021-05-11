@@ -1,5 +1,6 @@
 import numpy as np
 from dynamod.core import *
+from dynamod.afterdist import *
 
 def check_nonnegatives(model):
     matrix = model.matrix + model.incoming + model.outgoing
@@ -11,10 +12,23 @@ def check_nonnegatives(model):
         print(" entrycode", at)
         raise EvaluationError("negative matrix entries")
 
-def check_changes(model):
+def check_changes(model, sin, sout, transfer):
+    mysin, tr_subin, my_subin = intersect(sin, model.trace_for)
+    mysout, tr_subout, my_subout = intersect(sout, model.trace_for)
+    if mysin is not None and mysout is None:
+        print ("increase by:", transfer[tr_subin].sum())
+    if mysout is not None and mysin is None:
+        print ("decrease by:", transfer[tr_subout].sum())
+
+def check_tickchange(model, tick):
     matrix = model.matrix + model.incoming + model.outgoing
-    value = matrix[model.trace_for]
+    value = model.get_traceval(matrix)
     if value != model.trace_val:
-        print("value changed from", model.trace_val, "to", value)
+        print("[" + str(tick) + "] value changed from", model.trace_val, "to", value)
         model.trace_val = value
 
+def check_correctness(model):
+    matrix = model.matrix + model.incoming + model.outgoing
+    if abs(model.matrix.sum() - 1) > 0.00000001:
+        raise EvaluationError("matrix total is " + str(model.matrix.sum()))
+    AfterDistribution.apply_checks()

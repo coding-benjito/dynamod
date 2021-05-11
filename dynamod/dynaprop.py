@@ -23,7 +23,9 @@ class DynaModel:
         self.trace = False
         self.check = False
         self.trace_for = None
-        self.ctx_stack = []
+        self.raw_errors = False
+        self.ctx_stack = []#
+        self.sequential = False
 
     def initialize(self):
         try:
@@ -37,10 +39,14 @@ class DynaModel:
                 self.matrix = np.array(self.attSystem.build_matrix())
                 self.tick = 0
                 AfterDistribution.distributions = {}
-                self.trace_val = None if self.trace_for is None else self.matrix[self.trace_for]
                 self.history = History(self)
                 self.history.store()
+                self.step(simulate=True)
+                AfterDistribution.reset_all()
+
         except Exception as e:
+            if self.raw_errors:
+                raise e from None
             report_actions(e)
             exit(1)
 
@@ -60,19 +66,42 @@ class DynaModel:
         parse_model(path, self)
         self.srcfile = keep
 
-    def step(self):
+    def trace_on(self, map, split_by=None):
+        self.trace_for = tuple([att.values.index(map[att.name]) if att.name in map else NOSLICE for att in self.attSystem.attributes])
+        self.trace_split = None
+        if split_by is not None:
+            self.trace_split = 0
+            for  att in self.attSystem.attributes:
+                if att.name == split_by:
+                    break;
+                if att.name not in map:
+                    self.trace_split += 1
+        self.trace_val = self.get_traceval(self.matrix)
+
+    def get_traceval(self, of):
+        if self.trace_for is None:
+            return None
+        res = of[self.trace_for]
+        if self.trace_split is None:
+            return res.sum()
+        return res.sum(self.trace_split)
+
+    def step(self, simulate=False):
         try:
             with Action("progressions for tick " + str(self.tick), line=False):
-                self._step()
+                self._step(simulate)
         except MissingAxis:
             self.tprint("retry step", self.tick)
-            self.trace_val = None if self.trace_for is None else self.matrix[self.trace_for]
-            self.step()
+            self.trace_val = self.get_traceval(self.matrix)
+            AfterDistribution.reset_all()
+            self.step(simulate)
         except Exception as e:
+            if self.raw_errors:
+                raise e from None
             report_actions(e)
             exit(1)
 
-    def _step(self):
+    def _step(self, simulate=False):
         self.init_step()
         for name, prog in self.progressions.items():
             with Action("perform progression " + name, line=False):
@@ -84,7 +113,10 @@ class DynaModel:
                     raise miss_axis
                 finally:
                     self.leave_local_context()
-        self.close_step()
+                if self.sequential:
+                    self.apply()
+        if not simulate:
+            self.close_step()
 
     def perform_autosplit_steps (self, prog, name):
         if name in self.autosplits:
@@ -123,10 +155,20 @@ class DynaModel:
 
     def close_step(self):
         print('.', end='')
+        if not self.sequential:
+            self.apply()
+        self.tick += 1
+        if self.check:
+            check_correctness(self)
+        if self.trace_for is not None:
+            check_tickchange(self, self.tick)
+        self.history.store()
+
+    def apply(self):
         AfterDistribution.apply_afters()
         self.matrix += (self.incoming - self.outgoing)
-        self.tick += 1
-        self.history.store()
+        self.incoming = np.zeros_like(self.matrix)
+        self.outgoing = np.zeros_like(self.matrix)
 
     def perform_steps(self, steps):
         for step in steps:
@@ -260,7 +302,7 @@ class DynaModel:
         self.outgoing[sout] += transfer
         AfterDistribution.distribute_transfer(sin, sout, transfer, from_partition.srckey())
         if self.trace_for is not None:
-            check_changes(self)
+            check_changes(self, sin, sout, transfer)
         if self.check:
             check_nonnegatives(self)
 
@@ -488,13 +530,19 @@ def parse_model (srcfile:str, model=None, trace=False):
     from dynaparser.DynamodLexer import DynamodLexer
     from dynaparser.DynamodParser import DynamodParser
     from DynamodBuilder import DynamodBuilder
+    from dynamod.parse_helper import RegisterErrorListener
 
     input = FileStream(srcfile)
     lexer = DynamodLexer(input)
     stream = CommonTokenStream(lexer)
     parser = DynamodParser(stream)
+    listener = RegisterErrorListener()
+    parser.addErrorListener(listener);
     parser.setTrace(trace)
     tree = parser.model()
+    if listener.had_error:
+        print("processing terminated due to syntax errors")
+        exit(1)
     if model is None:
         model = DynaModel(srcfile)
     builder = DynamodBuilder(model)

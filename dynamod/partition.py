@@ -73,7 +73,11 @@ class Partition:
         return tuple(shape)
 
     def srckey(self):
-        return None if self.after is None else self.after.key
+        if self.after is None:
+            return None
+        if self.afterdist is None:
+            self.afterdist = AfterDistribution.get_distribution(self.model, self, self.after)
+        return self.afterdist.key
 
     def describe(self):
         text = (str(self.share) + " of ") if self.share != 1 else ""
