@@ -2,6 +2,8 @@ from recordtype import recordtype
 import random
 import string
 
+NOSLICE = slice(None)
+
 def is_num (expr):
     return isinstance(expr, int) or isinstance(expr, float)
 
@@ -19,10 +21,39 @@ def get_random_string(length):
     return ''.join(random.choice(string.ascii_letters) for i in range(length))
 
 def deslice(org):
-    return tuple([None if x == slice(None) else x for x in org])
+    return tuple([None if x is NOSLICE else x for x in org])
 
 def reslice(org):
-    return tuple([slice(None) if x is None else x for x in org])
+    return tuple([NOSLICE if x is None else x for x in org])
+
+def intersect(seg1, seg2):
+    res = []
+    sub1 = []
+    sub2 = []
+    for s1,s2 in zip(seg1, seg2):
+        if s1 is NOSLICE:
+            if s2 is NOSLICE:
+                res.append(NOSLICE)
+                sub1.append(NOSLICE)
+                sub2.append(NOSLICE)
+            else:
+                res.append(s2)
+                sub1.append(s2)
+        else:
+            if s2 is NOSLICE:
+                res.append(s1)
+                sub2.append(s1)
+            elif s1 == s2:
+                res.append(s1)
+            else:
+                return (None, None, None)
+    return (tuple(res), tuple(sub1), tuple(sub2))
+
+def axis_exclude (model, axis):
+    return tuple([att.index for att in model.attSystem.attributes if att.name != axis])
+
+def axval_segment (model, axis, value):
+    return tuple([att.values.index(value) if att.name == axis else NOSLICE for att in model.attSystem.attributes])
 
 
 class MissingAxis(Exception):

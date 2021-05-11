@@ -83,7 +83,7 @@ formulas:
 
 
 #
-# progressions describe the change of properties over time
+# progressions describe the change of attributes over time
 # the progression acts on certain compartments and/or with certain probabilities
 # and/or changes the values of properties after a given time distribution 
 # The time delay is based on the moment of entering the compartment the progression acts on
@@ -115,20 +115,21 @@ progressions:
         for risk=high: 70%
         for risk=moderate: 25%
         for risk=low: 5%
-      var prob_die_at_home = 
-        for risk=high: 5%
-        for risk=moderate: 1.5%
-        for risk=low: 0.1%
       for prob_hospital:
         after.std(5, 3):
           set state=hospitalized
           set quarantined=yes
-      for prob_die_at_home:
-        after.std(10, 3):
-          set state=dead
-      otherwise:                     # complement of other probabilities to 100%
-        after.std(3.6, 2):
-          set state=recovered      
+      otherwise:
+        var prob_die_at_home = 
+          for risk=high: 5%
+          for risk=moderate: 1.5%
+          for risk=low: 0.1%
+        for prob_die_at_home:
+          after.std(10, 3):
+            set state=dead
+        otherwise:                     # complement of other probabilities to 100%
+          after.std(3.6, 2):
+            set state=recovered      
 
   in_hospital_recover_or_die:
     # hospitalized people either die or recover (within different times)

@@ -36,6 +36,7 @@ class DynaModel:
                 self.context.partition.initialize()
                 self.matrix = np.array(self.attSystem.build_matrix())
                 self.tick = 0
+                AfterDistribution.distributions = {}
                 self.trace_val = None if self.trace_for is None else self.matrix[self.trace_for]
                 self.history = History(self)
                 self.history.store()
@@ -122,9 +123,9 @@ class DynaModel:
 
     def close_step(self):
         print('.', end='')
+        AfterDistribution.apply_afters()
         self.matrix += (self.incoming - self.outgoing)
         self.tick += 1
-        self.history.keep_track()
         self.history.store()
 
     def perform_steps(self, steps):
@@ -158,9 +159,8 @@ class DynaModel:
             raise ConfigurationError("unknown state description: " + op.state, op.ctx)
 
     def perform_after (self, op:DynamodAfter):
-        after = AfterDistribution.get_distribution(self, op)
         with Action("perform after", op=op):
-            self.context.push_partition(self.context.partition.with_after(after))
+            self.context.push_partition(self.context.partition.with_after(op))
             try:
                 self.perform_steps(op.block)
             finally:
@@ -232,43 +232,37 @@ class DynaModel:
     def set_state(self, axis, value, share=1):
         with Action("set " + axis + " to " + value, line=False):
             partition = self.context.partition
+            if share != 1:
+                partition = partition.with_prob(share)
             att = self.attSystem.attr_map[axis]
-            value_index = att.values.index(value)
-            share *= partition.share
             from_values = None
             if axis in partition.given:
                 if not partition.has_segment(axis, value):
-                    sin = partition.segment(att.index, value_index)
-                    sout = partition.segment()
-                    transfer = share * partition.transfer()
-                    if self.trace and self.trace_for is None:
-                        self.tprint("in (" + partition.describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
-                    self.incoming[sin] += transfer
-                    self.outgoing[sout] += transfer
-                    if self.trace_for is not None:
-                        check_changes(self)
-                    if self.check:
-                        check_nonnegatives(self)
+                    self.change_state(partition, axis, value)
                 else:
                     from_values = partition.given[att.index]
             else:
                 from_values = att.values
             if from_values is not None:
                 for from_value in from_values:
-                    src_index = att.values.index(from_value)
-                    if src_index != value_index:
-                        sin = partition.segment(att.index, value_index)
-                        sout = partition.segment(att.index, src_index)
-                        from_partition = partition.restricted(axis, from_value)
-                        transfer = share * from_partition.transfer()
-                        if self.trace and self.trace_for is None:
-                            self.tprint("in (" + from_partition.describe(share) + ") set " + axis + " to " + value + ": " + str(transfer.sum()))
-                        self.incoming[sin] += transfer
-                        self.outgoing[sout] += transfer
-                        if self.trace_for is not None:
-                            check_changes(self)
-                        if self.check:
-                            check_nonnegatives(self)
+                    if from_value != value:
+                        self.change_state(partition.restricted(axis, from_value), axis, value)
+
+    def change_state(self, from_partition, axis, to_value):
+        to_partition = from_partition.restricted(axis, to_value)
+        sin = to_partition.segment()
+        sout = from_partition.segment()
+        transfer = from_partition.transfer()
+        if self.trace and self.trace_for is None:
+            self.tprint(
+                "in (" + from_partition.describe() + ") set " + axis + " to " + to_value + ": " + str(transfer.sum()))
+        self.incoming[sin] += transfer
+        self.outgoing[sout] += transfer
+        AfterDistribution.distribute_transfer(sin, sout, transfer, from_partition.srckey())
+        if self.trace_for is not None:
+            check_changes(self)
+        if self.check:
+            check_nonnegatives(self)
 
     def invokeFunc(self, funcname, args):
         if funcname not in self.functions:

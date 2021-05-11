@@ -1,3 +1,5 @@
+import numpy as np
+
 from dynamod.core import *
 from scipy.stats import norm
 import math
@@ -5,23 +7,30 @@ import math
 class AfterDistribution:
     distributions = {}
 
-    def get_distribution (model, op:DynamodAfter):
-        if op.key in AfterDistribution.distributions:
-            return AfterDistribution.distributions[op.key]
-        dist = AfterDistribution (model, op)
-        AfterDistribution.distributions[op.key] = dist
+    def get_distribution (model, partition, op:DynamodAfter):
+        argvals = [model.evalExpr(arg) for arg in op.args]
+        key = (partition.segkey(), op.distrib, tuple(argvals))
+        if key in AfterDistribution.distributions:
+            return AfterDistribution.distributions[key]
+        dist = AfterDistribution (model, partition, op)
+        AfterDistribution.distributions[key] = dist
         return dist
 
-    def __init__(self, model, op:DynamodAfter):
+    def __init__(self, model, partition, op:DynamodAfter):
         self.model = model
-        self.key = op.key
         self.dist = op.distrib
         self.distmethod = "after_" + op.distrib
         if not hasattr(AfterDistribution, self.distmethod):
             raise ConfigurationError("unknown after-distrbution " + op.distrib, op.ctx)
-        self.args = op.args
-        timeshares = self.get_timeshares()
-        self.rfactor = self.calc_rfactor (timeshares)
+        self.argvals = [model.evalExpr(arg) for arg in op.args]
+        self.key = (partition.segkey(), op.distrib, tuple(self.argvals))
+        self.timeshares = self.get_timeshares()
+        self.segment = partition.segment()
+        self.shape = partition.get_shape()
+        full = model.matrix[self.segment]
+        self.sections = [x * full for x in self.timeshares]
+        self.incoming = np.zeros(self.shape)
+        self.outgoing = np.zeros(self.shape)
 
     def calc_rfactor (self, timeshares):
         r = 0
@@ -31,20 +40,29 @@ class AfterDistribution:
 
     def get_timeshares(self):
         try:
-            argvals = [self.model.evalExpr(arg) for arg in self.args]
-            return getattr(AfterDistribution, self.distmethod)(*argvals)
+            return getattr(AfterDistribution, self.distmethod)(*self.argvals)
         except Exception as e:
             raise ConfigurationError("error invoking distribution " + self.distmethod + ": " + str(e.args))
 
-    def get_share(self, segment):
-        timeshares = self.get_timeshares()
-        share = 0
-        for i in range(len(timeshares)):
-            share += timeshares[i] * self.model.history.get_incoming(segment, self.model.tick - i, self.rfactor)
-        return share
+    def get_share(self):
+        return self.sections[0]
 
     def describe(self):
         return "after." + self.dist
+
+    def apply (self):
+        self.sections.pop(0)
+        self.sections.append (np.zeros(self.shape))
+        for i in range(len(self.timeshares)):
+            self.sections[i] += self.timeshares[i] * self.incoming
+        self.incoming = np.zeros(self.shape)
+        f = np.zeros(self.shape)
+        matrix = self.model.matrix[self.segment]
+        np.divide(matrix - self.outgoing, matrix, out=f, where=matrix!=0)
+        for i in range(len(self.timeshares)):
+            self.sections[i] *= f
+        self.incoming = np.zeros(self.shape)
+        self.outgoing = np.zeros(self.shape)
 
     @staticmethod
     def after_fix(delay):
@@ -83,3 +101,20 @@ class AfterDistribution:
             lower = upper - 1
         shares[-1] += 1 - total
         return shares
+
+    @staticmethod
+    def distribute_transfer(sin, sout, transfer, srckey):
+        for adist in AfterDistribution.distributions.values():
+            if adist.key == srckey:
+                continue
+            mysin, tr_sub, my_sub = intersect(sin, adist.segment)
+            if mysin is not None:
+                adist.incoming[my_sub] += transfer[tr_sub]
+            mysout, tr_sub, my_sub = intersect(sout, adist.segment)
+            if mysout is not None:
+                adist.outgoing[my_sub] += transfer[tr_sub]
+
+    @staticmethod
+    def apply_afters():
+        for adist in AfterDistribution.distributions.values():
+            adist.apply()
