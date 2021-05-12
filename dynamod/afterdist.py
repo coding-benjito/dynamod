@@ -27,22 +27,29 @@ class AfterDistribution:
         self.timeshares = self.get_timeshares()
         self.segment = partition.segment()
         self.shape = partition.get_shape()
-        full = model.matrix[self.segment]
-        self.sections = [x * full for x in self.timeshares]
-        self.incoming = np.zeros(self.shape)
-        self.outgoing = np.zeros(self.shape)
+        self.init_sections()
+        self.section0 = np.zeros(self.shape)
+        self.reset()
         if model.check:
             self.check()
 
     def reset(self):
         self.incoming = np.zeros(self.shape)
-        self.outgoing = np.zeros(self.shape)
+        self.delta = np.zeros(self.shape)
+        self.ownout = np.zeros(self.shape)
 
     def calc_rfactor (self, timeshares):
         r = 0
         for i in range(len(timeshares)):
             r += (i+1) * timeshares[i]
         return 1 / r
+
+    def init_sections(self):
+        full = self.model.matrix[self.segment]
+        flow = full * self.calc_rfactor(self.timeshares)
+        #build [xn, xn-1+xn, ... x1+x2+...+xn]
+        factors = np.cumsum(self.timeshares[::-1])[::-1]
+        self.sections = [x * flow for x in factors]
 
     def get_timeshares(self):
         try:
@@ -56,23 +63,41 @@ class AfterDistribution:
     def describe(self):
         return "after." + self.dist
 
+    def distribute (self, sin, sout, transfer, srckey):
+        if self.key == srckey:
+            self.ownout += transfer
+            return
+        ssin, tr_sin, my_sin = intersect(sin, self.segment)
+        ssout, tr_sout, my_sout = intersect(sout, self.segment)
+        if ssout is None:
+            if ssin is not None:
+                self.incoming[my_sin] += transfer[tr_sin]
+            return
+        self.delta[my_sout] -= transfer[tr_sout]
+        if ssin is not None:
+            self.delta[my_sin] += transfer[tr_sin]
+
     def apply (self):
+        self.sections[0] -= self.ownout
+        self.section0 += self.sections[0]
         self.sections.pop(0)
         self.sections.append (np.zeros(self.shape))
         for i in range(len(self.timeshares)):
             self.sections[i] += self.timeshares[i] * self.incoming
         f = np.zeros(self.shape)
-        all = sum(self.sections)
-        np.divide(all - self.outgoing, all, out=f, where=all>0)
+        all = sum(self.sections) + self.section0
+        full = self.model.matrix[self.segment]
+        np.divide(full, all, out=f, where=all>0)
         for i in range(len(self.timeshares)):
             self.sections[i] *= f
-        self.incoming = np.zeros(self.shape)
-        self.outgoing = np.zeros(self.shape)
+        self.section0 *= f
+        self.reset()
 
     def check(self):
         res = self.model.matrix[self.segment].copy()
         for section in self.sections:
             res -= section
+        res -= self.section0
         if np.amin(res) < -0.00000001:
             raise EvaluationError("after-distribution corrupted")
 
@@ -119,14 +144,7 @@ class AfterDistribution:
     @staticmethod
     def distribute_transfer(sin, sout, transfer, srckey):
         for adist in AfterDistribution.distributions.values():
-            if adist.key == srckey:
-                continue
-            mysin, tr_sub, my_sub = intersect(sin, adist.segment)
-            if mysin is not None:
-                adist.incoming[my_sub] += transfer[tr_sub]
-            mysout, tr_sub, my_sub = intersect(sout, adist.segment)
-            if mysout is not None:
-                adist.outgoing[my_sub] += transfer[tr_sub]
+            adist.distribute (sin, sout, transfer, srckey)
 
     @staticmethod
     def apply_afters():

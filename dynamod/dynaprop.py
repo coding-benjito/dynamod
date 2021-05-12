@@ -24,7 +24,7 @@ class DynaModel:
         self.check = False
         self.trace_for = None
         self.raw_errors = False
-        self.ctx_stack = []#
+        self.ctx_stack = []
         self.sequential = False
 
     def initialize(self):
@@ -157,18 +157,22 @@ class DynaModel:
         print('.', end='')
         if not self.sequential:
             self.apply()
-        self.tick += 1
+        self.tickover()
         if self.check:
             check_correctness(self)
         if self.trace_for is not None:
             check_tickchange(self, self.tick)
         self.history.store()
 
+    def tickover(self):
+        AfterDistribution.tickover()
+        self.tick += 1
+
     def apply(self):
-        AfterDistribution.apply_afters()
         self.matrix += (self.incoming - self.outgoing)
         self.incoming = np.zeros_like(self.matrix)
         self.outgoing = np.zeros_like(self.matrix)
+        AfterDistribution.apply_afters()
 
     def perform_steps(self, steps):
         for step in steps:

@@ -7,15 +7,15 @@ import matplotlib.pyplot as plt
 
 profile = False
 runs = 100
-model = parse_model ("test.mod", trace=False)
+model = parse_model ("t.mod", trace=False)
 #model.trace = True
 #model.trace_for = (2, 0, 4, 1)
 #model.check = True
 model.initialize()
 #model.trace_on({'state':'exposed'})
-#model.trace = True
-#model.check = True
-#model.raw_errors = True
+model.trace = True
+model.check = True
+model.raw_errors = True
 
 if profile:
     pr = cProfile.Profile()
