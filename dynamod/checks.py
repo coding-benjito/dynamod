@@ -3,7 +3,7 @@ from dynamod.core import *
 from dynamod.afterdist import *
 
 def check_nonnegatives(model):
-    matrix = model.matrix + model.incoming + model.outgoing
+    matrix = model.matrix
     if np.amin(matrix) < -0.00000001:
         at = np.unravel_index(np.argmin(matrix), matrix.shape)
         print ("!!! negative share for ", end='')
@@ -21,7 +21,7 @@ def check_changes(model, sin, sout, transfer):
         print ("decrease by:", transfer[tr_subout].sum())
 
 def check_tickchange(model, tick):
-    matrix = model.matrix + model.incoming + model.outgoing
+    matrix = model.matrix
     value = model.get_traceval(matrix)
     if value != model.trace_val:
         print("[" + str(tick) + "] value changed from", model.trace_val, "to", value)

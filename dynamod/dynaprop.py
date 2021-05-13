@@ -24,8 +24,8 @@ class DynaModel:
         self.check = False
         self.trace_for = None
         self.raw_errors = False
+        self.simulate = False
         self.ctx_stack = []
-        self.sequential = False
 
     def initialize(self):
         try:
@@ -41,8 +41,9 @@ class DynaModel:
                 AfterDistribution.distributions = {}
                 self.history = History(self)
                 self.history.store()
-                self.step(simulate=True)
-                AfterDistribution.reset_all()
+                self.simulate = True
+                self.step()
+                self.simulate = False
 
         except Exception as e:
             if self.raw_errors:
@@ -86,22 +87,22 @@ class DynaModel:
             return res.sum()
         return res.sum(self.trace_split)
 
-    def step(self, simulate=False):
+    def step(self):
         try:
             with Action("progressions for tick " + str(self.tick), line=False):
-                self._step(simulate)
+                self._step()
         except MissingAxis:
             self.tprint("retry step", self.tick)
             self.trace_val = self.get_traceval(self.matrix)
-            AfterDistribution.reset_all()
-            self.step(simulate)
+            self.matrix = self.backup.copy()
+            self.step()
         except Exception as e:
             if self.raw_errors:
                 raise e from None
             report_actions(e)
             exit(1)
 
-    def _step(self, simulate=False):
+    def _step(self):
         self.init_step()
         for name, prog in self.progressions.items():
             with Action("perform progression " + name, line=False):
@@ -113,9 +114,7 @@ class DynaModel:
                     raise miss_axis
                 finally:
                     self.leave_local_context()
-                if self.sequential:
-                    self.apply()
-        if not simulate:
+        if not self.simulate:
             self.close_step()
 
     def perform_autosplit_steps (self, prog, name):
@@ -149,14 +148,10 @@ class DynaModel:
 
     def init_step(self):
         self.baseStore.clear_cache()
-        self.incoming = np.zeros_like(self.matrix)
-        self.outgoing = np.zeros_like(self.matrix)
-        self.tprint("start step", self.tick)
+        self.backup = self.matrix.copy()
 
     def close_step(self):
         print('.', end='')
-        if not self.sequential:
-            self.apply()
         self.tickover()
         if self.check:
             check_correctness(self)
@@ -165,14 +160,8 @@ class DynaModel:
         self.history.store()
 
     def tickover(self):
-        AfterDistribution.tickover()
+        AfterDistribution.tickover_all()
         self.tick += 1
-
-    def apply(self):
-        self.matrix += (self.incoming - self.outgoing)
-        self.incoming = np.zeros_like(self.matrix)
-        self.outgoing = np.zeros_like(self.matrix)
-        AfterDistribution.apply_afters()
 
     def perform_steps(self, steps):
         for step in steps:
@@ -245,18 +234,18 @@ class DynaModel:
                     total_prob -= prob
                     self.perform_on (restr, self.context.with_prob(prob))
 
-            if op.otherwise is not None:
-                if total_prob != 1:
-                    if len(axes) != 0:
-                        raise ConfigurationError("cannot use otherwise after mixed axis/probability restrictions", op.otherwise.ctx)
-                    self.perform_on(restr, self.context.with_prob(1-total_prob))
-                    return
-                if len(axes) > 1:
-                    raise ConfigurationError("cannot use otherwise after restrictions over multiple axes", op.otherwise.ctx)
-                others = set(self.attSystem.attr_map.keys()) - axvalues
-                axis = axes.pop()
-                for v in others:
-                    self.perform_on(restr, self.context.restricted(axis, v))
+        if op.otherwise is not None:
+            if total_prob != 1:
+                if len(axes) != 0:
+                    raise ConfigurationError("cannot use otherwise after mixed axis/probability restrictions", op.otherwise.ctx)
+                self.perform_on(restr, self.context.with_prob(1-total_prob))
+                return
+            if len(axes) > 1:
+                raise ConfigurationError("cannot use otherwise after restrictions over multiple axes", op.otherwise.ctx)
+            axis = axes.pop()
+            others = set(self.attSystem.attr_map[axis].values) - axvalues
+            for v in others:
+                self.perform_on(restr, self.context.restricted(axis, v))
 
     def perform_on(self, restr:DynamodRestriction, partition):
         with Action("perform segment", op=restr):
@@ -302,13 +291,14 @@ class DynaModel:
         if self.trace and self.trace_for is None:
             self.tprint(
                 "in (" + from_partition.describe() + ") set " + axis + " to " + to_value + ": " + str(transfer.sum()))
-        self.incoming[sin] += transfer
-        self.outgoing[sout] += transfer
-        AfterDistribution.distribute_transfer(sin, sout, transfer, from_partition.srckey())
-        if self.trace_for is not None:
-            check_changes(self, sin, sout, transfer)
-        if self.check:
-            check_nonnegatives(self)
+        if not self.simulate:
+            self.matrix[sin] += transfer
+            self.matrix[sout] -= transfer
+            AfterDistribution.distribute_transfer(sin, sout, transfer, from_partition.srckey())
+            if self.trace_for is not None:
+                check_changes(self, sin, sout, transfer)
+            if self.check:
+                check_nonnegatives(self)
 
     def invokeFunc(self, funcname, args):
         if funcname not in self.functions:

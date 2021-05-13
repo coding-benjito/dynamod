@@ -9,7 +9,7 @@ class AfterDistribution:
 
     def get_distribution (model, partition, op:DynamodAfter):
         argvals = [model.evalExpr(arg) for arg in op.args]
-        key = (partition.segkey(), op.distrib, tuple(argvals))
+        key = (partition.segkey(), get_line(op.ctx), tuple(argvals))
         if key in AfterDistribution.distributions:
             return AfterDistribution.distributions[key]
         dist = AfterDistribution (model, partition, op)
@@ -23,20 +23,16 @@ class AfterDistribution:
         if not hasattr(AfterDistribution, self.distmethod):
             raise ConfigurationError("unknown after-distrbution " + op.distrib, op.ctx)
         self.argvals = [model.evalExpr(arg) for arg in op.args]
-        self.key = (partition.segkey(), op.distrib, tuple(self.argvals))
+        self.key = (partition.segkey(), get_line(op.ctx), tuple(self.argvals))
         self.timeshares = self.get_timeshares()
         self.segment = partition.segment()
         self.shape = partition.get_shape()
         self.init_sections()
-        self.section0 = np.zeros(self.shape)
-        self.reset()
+        self.leftover = np.zeros(self.shape)
+        self.current_batch = None
+        self.taken_out = None
         if model.check:
             self.check()
-
-    def reset(self):
-        self.incoming = np.zeros(self.shape)
-        self.delta = np.zeros(self.shape)
-        self.ownout = np.zeros(self.shape)
 
     def calc_rfactor (self, timeshares):
         r = 0
@@ -57,47 +53,62 @@ class AfterDistribution:
         except Exception as e:
             raise ConfigurationError("error invoking distribution " + self.distmethod + ": " + str(e.args))
 
+    def assert_current(self):
+        if self.current_batch is None:
+            self.normalize()
+            self.current_batch = self.sections[0]
+            self.sections[0] = np.zeros(self.shape)
+            self.taken_out = np.zeros(self.shape)
+
     def get_share(self):
-        return self.sections[0]
+        if self.model.simulate:
+            return self.sections[0]
+        self.assert_current()
+        return self.current_batch
+
+    def normalize(self):
+        f = np.zeros(self.shape)
+        all = sum(self.sections) + self.leftover
+        full = self.model.matrix[self.segment]
+        np.divide(full, all, out=f, where=all>0)
+        for i in range(len(self.timeshares)):
+            self.sections[i] *= f
+        self.leftover *= f
 
     def describe(self):
         return "after." + self.dist
 
     def distribute (self, sin, sout, transfer, srckey):
         if self.key == srckey:
-            self.ownout += transfer
+            self.assert_current()
+            self.taken_out += transfer
             return
         ssin, tr_sin, my_sin = intersect(sin, self.segment)
         ssout, tr_sout, my_sout = intersect(sout, self.segment)
-        if ssout is None:
-            if ssin is not None:
-                self.incoming[my_sin] += transfer[tr_sin]
-            return
-        self.delta[my_sout] -= transfer[tr_sout]
-        if ssin is not None:
-            self.delta[my_sin] += transfer[tr_sin]
+        if ssout is None and ssin is not None:
+            incoming = transfer[tr_sin]
+            if len(my_sin) == 0:
+                for i in range(len(self.timeshares)):
+                    self.sections[i] += self.timeshares[i] * incoming
+            else:
+                for i in range(len(self.timeshares)):
+                    self.sections[i][my_sin] += self.timeshares[i] * incoming
 
-    def apply (self):
-        self.sections[0] -= self.ownout
-        self.section0 += self.sections[0]
-        self.sections.pop(0)
+    def tickover (self):
+        self.assert_current()
+        self.leftover += self.current_batch - self.taken_out
+        self.current_batch = None
+        self.taken_out = None
+        self.sections[0] += self.sections[1]
+        self.sections.pop(1)
         self.sections.append (np.zeros(self.shape))
-        for i in range(len(self.timeshares)):
-            self.sections[i] += self.timeshares[i] * self.incoming
-        f = np.zeros(self.shape)
-        all = sum(self.sections) + self.section0
-        full = self.model.matrix[self.segment]
-        np.divide(full, all, out=f, where=all>0)
-        for i in range(len(self.timeshares)):
-            self.sections[i] *= f
-        self.section0 *= f
-        self.reset()
 
     def check(self):
+        return
         res = self.model.matrix[self.segment].copy()
         for section in self.sections:
             res -= section
-        res -= self.section0
+        res -= self.leftover
         if np.amin(res) < -0.00000001:
             raise EvaluationError("after-distribution corrupted")
 
@@ -108,7 +119,7 @@ class AfterDistribution:
         if delay < 1:
             delay = 1
         len = math.ceil(delay)
-        timeshares = [0 for i in range(len)]
+        timeshares = [0 for i in range(len+1)]
         if len > delay:
             timeshares[-1] = len - delay
             rest = 1 + delay - len
@@ -128,7 +139,7 @@ class AfterDistribution:
         cdf = norm(loc, scale).cdf
         shares = []
         total = 0
-        upper = 1.5
+        upper = 0.5
         lower = None
         while total < 0.999:
             share = cdf(upper)
@@ -157,6 +168,6 @@ class AfterDistribution:
             adist.check()
 
     @staticmethod
-    def reset_all():
+    def tickover_all():
         for adist in AfterDistribution.distributions.values():
-            adist.reset()
+            adist.tickover()
