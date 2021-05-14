@@ -1,4 +1,5 @@
 from dynamod.core import *
+from dynamod.segop import *
 import pandas as pd
 
 class History:
@@ -12,7 +13,7 @@ class History:
     def store(self):
         self.matrix.append(self.model.matrix.copy())
         for name, expr in self.model.results.items():
-            self.results[name].append (self.model.evalExpr(expr))
+            self.results[name].append (self.model.evalExpr(expr, Segop(self.model)))
 
     def get_attribute(self, axis, value, start=0):
         segment = axval_segment(self.model, axis, value)
@@ -25,8 +26,11 @@ class History:
         return pd.DataFrame(data, columns=att.values)
 
     def get_result(self, name, start=0):
-        pass
+        return self.results[name][start:]
+
     def get_results(self, start=0):
-        pass
+        data = {name:(hist[start:]) for (name,hist) in self.results.items()}
+        return pd.DataFrame(data)
+
     def all_results(self, start=0):
         pass

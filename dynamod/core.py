@@ -55,6 +55,8 @@ def axis_exclude (model, axis):
 def axval_segment (model, axis, value):
     return tuple([att.values.index(value) if att.name == axis else NOSLICE for att in model.attSystem.attributes])
 
+def modified_seg(seg, index, value):
+    return tuple([value if i==index else seg[i] for i in range(len(seg))])
 
 class MissingAxis(Exception):
     def __init__(self, axis):
@@ -100,7 +102,6 @@ DynamodCondExp = recordtype('DynamodCondExp', ['ctx', 'type', 'cond', 'expr'])
 TernaryOp = recordtype('TernaryOp', ['ctx', 'opcode', 'op1', 'op2', 'op3'])
 BinaryOp = recordtype('BinaryOp', ['ctx', 'opcode', 'op1', 'op2'])
 UnaryOp = recordtype('UnaryOp', ['ctx', 'opcode', 'op'])
-
 
 class ShareSystem:
     def share_of (self, axval:str, cube):

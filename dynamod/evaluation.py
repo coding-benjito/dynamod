@@ -59,7 +59,11 @@ class Evaluator:
         if opcode == '*':
             return op1 * op2
         if opcode == '/':
+            if op2 == 0:
+                return op1
             return op1 / op2;
+        if opcode == '**':
+            return op1 ** op2;
         raise ConfigurationError("unknown calculation operator: " + opcode)
 
     def evalCond (self, expr):
@@ -111,7 +115,7 @@ class Evaluator:
                 raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
 
             if isinstance(expr, BinaryOp):
-                if expr.opcode in ['+', '-', '*', '/']:
+                if expr.opcode in ['+', '-', '*', '/', '**']:
                     op1 = self.evalExpr(expr.op1)
                     op2 = self.evalExpr(expr.op2)
                     if is_num(op1) and is_num(op2):
@@ -156,7 +160,7 @@ class Evaluator:
                     if expr.op2 is not None:
                         self.context.values.delete('_SHARE_BASE')
                     share = part.total()
-                    if expr.op2 is not None:
+                    if share > 0 and expr.op2 is not None:
                         share /= base.total()
                     return share
 
@@ -194,15 +198,15 @@ class Evaluator:
                         return self.evalExpr (cond_expr.expr)
                 elif isinstance(cond_expr, DynamodCondExp):
                     axis = cond_expr.cond.axis
+                    att = self.model.attribute(axis)
                     value = cond_expr.cond.value
                     if isinstance(value, list):
-                        for v in value:
-                            v = self.evalExpr(v)
-                            if self.context.partition.has_segment(axis, v):
-                                return self.evalExpr (cond_expr.expr)
+                        values = [att.indexof(self.evalExpr(v)) for v in value]
+                        if self.context.onseg.has_segments(att.index, values):
+                            return self.evalExpr (cond_expr.expr)
                     else:
                         value = self.evalExpr(value)
-                        if self.context.partition.has_segment(axis, value):
+                        if self.context.onseg.has_segment(att.index, att.indexof(value)):
                             return self.evalExpr(cond_expr.expr)
                 else:
                     raise EvaluationError("illegal conditional expression" + str(cond_expr.cond))

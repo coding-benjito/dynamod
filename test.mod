@@ -7,14 +7,14 @@ parameters:
   f_presymptomatic : 0.692       #factor for infectiousness relative to symptomatic
   factor_when_quarantined : 0.05 #factor for infectiousness relative to unquarantined
   
-  contacts_kid_kid : 5           #contact frequency between age groups
-  contacts_kid_adult : 2
-  contacts_kid_old : 0.5
-  contacts_adult_adult : 3
-  contacts_adult_old : 1
-  contacts_old_old : 2
+  contacts_kid_kid : 10           #contact frequency between age groups
+  contacts_kid_adult : 4
+  contacts_kid_old : 1
+  contacts_adult_adult : 5
+  contacts_adult_old : 1.5
+  contacts_old_old : 3
 
-  infections_per_contact : 0.2
+  infections_per_contact : 0.5
   
 attributes:
 ###########
@@ -51,28 +51,32 @@ attributes:
       dead: 0
 
   quarantined:
-    values: (yes, no)
+    values: (yes, no, was)
     shares:
       for state in (exposed, asymptomatic, presymptomatic):
         yes: 10%
         no: 90%
+        was: 0
       for state=symptomatic:
         yes: 60%
         no: 40%
+        was: 0
       for state=hospitalized:
         yes: 98%
         no: 2%
+        was: 0
       otherwise:
         yes: 0
-        no: %%
+        no: 99%
+        was: 1%
 
-
+  
 formulas:
 #########
   Kids: ALL with age=kid
   Adults: ALL with age=adult
   Olds: ALL with age=old
-  infected(X): [state=symptomatic|X] + f_asymptomatic*[state=asymptomatic|X] + f_presymptomatic*[state=presymptomatic|X]
+  infected(X): [X with state=symptomatic] + f_asymptomatic*[X with state=asymptomatic] + f_presymptomatic*[X with state=presymptomatic]
   force(X): infected(X with quarantined=no) + factor_when_quarantined * infected(X with quarantined=yes)
   force_of_infection: 
     for age=kid: contacts_kid_kid * force(Kids) + contacts_kid_adult * force(Adults) + contacts_kid_old * force(Olds)
@@ -80,7 +84,7 @@ formulas:
     for age=old: contacts_kid_old * force(Kids) + contacts_adult_old * force(Adults) + contacts_old_old * force(Olds)
   infection_probability: infections_per_contact * force_of_infection
   Yesterday: ALL.before(1)
-
+  NewInfections(X,days): [X with quarantined in (yes,was)] - [X.before(days) with quarantined in (yes,was)]
 
 #
 # progressions describe the change of attributes over time
@@ -108,6 +112,12 @@ progressions:
       after.std(2.13, 1.5):           # normal distribution of progression time (mu, sigma)
         set state=symptomatic
 
+  recover_from_asymptomatic:
+    # asymptomatic cases recover after a while
+    for state=asymptomatic:
+      after.std(7,2.5):
+        set state=recovered
+        
   symptoms_worsen:
     # symptomatic people go to hospital, recover or die at home
     for state=symptomatic:
@@ -158,23 +168,30 @@ progressions:
     for S as state=susceptible:         
       for infection_probability:
         set state=exposed
-        set quarantined=
-          yes: 20%
-          no: 80%
+        for 50%:
+          set quarantined=yes
 
-  put_in_quarantine:
-    #infection is reported, people are put in quarantine
+  handle_quarantine:
+    #infection is reported, people are put in quarantine. recovered or dead people no longer
     for quarantined=no:
-      for state in (exposed, asymptomatic, presymptomatic):
-        for 10%:                        # each day there is a 10% chance of reporting the case
+      for state=exposed:
+        for 1%:
+          set quarantined=yes
+      for state in (asymptomatic, presymptomatic):
+        for 3%:
           set quarantined=yes
       for state=symptomatic:
         for 25%:
           set quarantined=yes
+    for quarantined=yes:
+      for state in (recovered, dead):
+        set quarantined=was
           
 results:
 ########
-  dead_kids = [state=dead with age=kid]
-  exposed = [state=exposed]
-  r = 5.2 * [state=exposed] / [Yesterday with state=exposed]
-
+  dead_kids: [state=dead with age=kid]
+  exposed: [state=exposed]
+  onceinfected: [quarantined in (yes,was)]
+  r4: NewInfections(ALL,4)/NewInfections(ALL.before(4), 4)
+  incidence7 : 100000 * NewInfections(ALL,7)
+  dailynew: 80000000 * NewInfections(ALL,1)

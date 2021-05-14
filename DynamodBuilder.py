@@ -3,6 +3,38 @@ from dynaparser.DynamodParser import DynamodParser
 from antlr4 import ParserRuleContext
 from dynamod.core import *
 
+def check_statements (statements):
+    had_for = False
+    had_after = False
+    first_split = None
+    nr = 0
+    for op in statements:
+        if isinstance(op, DynamodElseList):
+            if had_for:
+                raise ConfigurationError("only one 'for..otherwise' section allowed per block", op.ctx)
+            if had_after:
+                raise ConfigurationError("can't combine 'after' and 'for..otherwise' in same block", op.ctx)
+            had_for = True
+            first_split = nr
+        elif isinstance(op, DynamodAfter):
+            if had_after:
+                raise ConfigurationError("only one 'after' section allowed per block", op.ctx)
+            if had_for:
+                raise ConfigurationError("can't combine 'after' and 'for..otherwise' in same block", op.ctx)
+            had_after = True
+            first_split = nr
+        elif False:
+            if had_for or had_after:
+                #move this item on top and repeat
+                item = statements.pop(nr)
+                statements.insert(first_split, item)
+                check_statements(statements)
+                return
+        nr += 1
+
+def unwrap (text):
+    return text[1:-1]
+
 def combine_list (first, second):
     reslist = []
     reslist.append(first)
@@ -55,7 +87,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#model_inc.
     def visitModel_inc(self, ctx:DynamodParser.Model_incContext):
-        self.model.include (ctx.PATH().getText())
+        self.model.include (unwrap(ctx.STRING().getText()))
 
     # Visit a parse tree produced by DynamodParser#model_pars.
     def visitModel_pars(self, ctx:DynamodParser.Model_parsContext):
@@ -197,7 +229,9 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#progression_block.
     def visitProgression_block(self, ctx:DynamodParser.Progression_blockContext):
-        return self.visit(ctx.progression_statements())
+        statements = self.visit(ctx.progression_statements())
+        check_statements(statements)
+        return statements
 
     # Visit a parse tree produced by DynamodParser#progression_statements.
     def visitProgression_statements(self, ctx:DynamodParser.Progression_statementsContext):
@@ -348,6 +382,10 @@ class DynamodBuilder(DynamodVisitor):
     def visitTerm_mul(self, ctx:DynamodParser.Term_mulContext):
         return BinaryOp(ctx, '*', self.visit(ctx.term()), self.visit(ctx.factor()))
 
+    # Visit a parse tree produced by DynamodParser#term_exp.
+    def visitTerm_exp(self, ctx:DynamodParser.Term_expContext):
+        return BinaryOp(ctx, '**', self.visit(ctx.term()), self.visit(ctx.factor()))
+
     # Visit a parse tree produced by DynamodParser#term_factor.
     def visitTerm_factor(self, ctx:DynamodParser.Term_factorContext):
         return self.visit(ctx.factor())
@@ -406,6 +444,10 @@ class DynamodBuilder(DynamodVisitor):
     def visitPrimary_name(self, ctx:DynamodParser.Primary_nameContext):
         return UnaryOp(ctx, 'var', ctx.NAME().getText())
 
+    # Visit a parse tree produced by DynamodParser#primary_string.
+    def visitPrimary_string(self, ctx:DynamodParser.Primary_stringContext):
+        return unwrap(ctx.STRING().getText())
+
     # Visit a parse tree produced by DynamodParser#primary_partition.
     def visitPrimary_partition(self, ctx:DynamodParser.Primary_partitionContext):
         return self.visit(ctx.partition())
@@ -430,6 +472,13 @@ class DynamodBuilder(DynamodVisitor):
     def visitPart_name(self, ctx:DynamodParser.Part_nameContext):
         return UnaryOp(ctx, 'var', ctx.NAME().getText())
 
+    # Visit a parse tree produced by DynamodParser#part_expr.
+    def visitPart_expr(self, ctx:DynamodParser.Part_exprContext):
+        return self.visit(ctx.partition())
+
+    # Visit a parse tree produced by DynamodParser#part_method.
+    def visitPart_method(self, ctx:DynamodParser.Part_methodContext):
+        return TernaryOp(ctx, 'method', self.visit(ctx.partition()), ctx.NAME().getText(), self.visit(ctx.arguments()))
 
     # Visit a parse tree produced by DynamodParser#arguments.
     def visitArguments(self, ctx:DynamodParser.ArgumentsContext):

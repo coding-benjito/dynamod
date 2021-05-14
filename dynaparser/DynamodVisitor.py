@@ -349,6 +349,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#term_exp.
+    def visitTerm_exp(self, ctx:DynamodParser.Term_expContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#term_factor.
     def visitTerm_factor(self, ctx:DynamodParser.Term_factorContext):
         return self.visitChildren(ctx)
@@ -394,6 +399,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#primary_string.
+    def visitPrimary_string(self, ctx:DynamodParser.Primary_stringContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#primary_func.
     def visitPrimary_func(self, ctx:DynamodParser.Primary_funcContext):
         return self.visitChildren(ctx)
@@ -426,6 +436,16 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#primary_rel_share.
     def visitPrimary_rel_share(self, ctx:DynamodParser.Primary_rel_shareContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#part_expr.
+    def visitPart_expr(self, ctx:DynamodParser.Part_exprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#part_method.
+    def visitPart_method(self, ctx:DynamodParser.Part_methodContext):
         return self.visitChildren(ctx)
 
 

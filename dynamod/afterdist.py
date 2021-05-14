@@ -1,38 +1,34 @@
 import numpy as np
 
 from dynamod.core import *
+from dynamod.segop import *
 from scipy.stats import norm
 import math
 
 class AfterDistribution:
     distributions = {}
 
-    def get_distribution (model, partition, op:DynamodAfter):
+    def get_distribution (model, op:DynamodAfter, segment):
         argvals = [model.evalExpr(arg) for arg in op.args]
-        key = (partition.segkey(), get_line(op.ctx), tuple(argvals))
+        key = (segment, get_line(op.ctx), tuple(argvals))
         if key in AfterDistribution.distributions:
             return AfterDistribution.distributions[key]
-        dist = AfterDistribution (model, partition, op)
+        dist = AfterDistribution (model, op, segment)
         AfterDistribution.distributions[key] = dist
         return dist
 
-    def __init__(self, model, partition, op:DynamodAfter):
+    def __init__(self, model, op:DynamodAfter, segment):
         self.model = model
         self.dist = op.distrib
+        self.segment = reslice(segment)
         self.distmethod = "after_" + op.distrib
         if not hasattr(AfterDistribution, self.distmethod):
             raise ConfigurationError("unknown after-distrbution " + op.distrib, op.ctx)
         self.argvals = [model.evalExpr(arg) for arg in op.args]
-        self.key = (partition.segkey(), get_line(op.ctx), tuple(self.argvals))
         self.timeshares = self.get_timeshares()
-        self.segment = partition.segment()
-        self.shape = partition.get_shape()
         self.init_sections()
-        self.leftover = np.zeros(self.shape)
-        self.current_batch = None
-        self.taken_out = None
-        if model.check:
-            self.check()
+        self.total = self.model.matrix[self.segment].sum()
+        self.incoming = 0
 
     def calc_rfactor (self, timeshares):
         r = 0
@@ -41,11 +37,10 @@ class AfterDistribution:
         return 1 / r
 
     def init_sections(self):
-        full = self.model.matrix[self.segment]
-        flow = full * self.calc_rfactor(self.timeshares)
+        r = self.calc_rfactor(self.timeshares)
         #build [xn, xn-1+xn, ... x1+x2+...+xn]
-        factors = np.cumsum(self.timeshares[::-1])[::-1]
-        self.sections = [x * flow for x in factors]
+        factors = np.cumsum(self.timeshares[::-1])[::-1].tolist()
+        self.sections = [r * x for x in factors]
 
     def get_timeshares(self):
         try:
@@ -53,64 +48,34 @@ class AfterDistribution:
         except Exception as e:
             raise ConfigurationError("error invoking distribution " + self.distmethod + ": " + str(e.args))
 
-    def assert_current(self):
-        if self.current_batch is None:
-            self.normalize()
-            self.current_batch = self.sections[0]
-            self.sections[0] = np.zeros(self.shape)
-            self.taken_out = np.zeros(self.shape)
-
     def get_share(self):
-        if self.model.simulate:
-            return self.sections[0]
-        self.assert_current()
-        return self.current_batch
+        return self.sections[0]
 
     def normalize(self):
-        f = np.zeros(self.shape)
-        all = sum(self.sections) + self.leftover
-        full = self.model.matrix[self.segment]
-        np.divide(full, all, out=f, where=all>0)
-        for i in range(len(self.timeshares)):
-            self.sections[i] *= f
-        self.leftover *= f
+        total = sum(self.sections)
+        if total != 0:
+            self.sections = [s / total for s in self.sections]
 
     def describe(self):
         return "after." + self.dist
 
-    def distribute (self, sin, sout, transfer, srckey):
-        if self.key == srckey:
-            self.assert_current()
-            self.taken_out += transfer
-            return
+    def distribute (self, sin, sout, transfer):
         ssin, tr_sin, my_sin = intersect(sin, self.segment)
         ssout, tr_sout, my_sout = intersect(sout, self.segment)
         if ssout is None and ssin is not None:
-            incoming = transfer[tr_sin]
-            if len(my_sin) == 0:
-                for i in range(len(self.timeshares)):
-                    self.sections[i] += self.timeshares[i] * incoming
-            else:
-                for i in range(len(self.timeshares)):
-                    self.sections[i][my_sin] += self.timeshares[i] * incoming
+            self.incoming += transfer.sum()
 
     def tickover (self):
-        self.assert_current()
-        self.leftover += self.current_batch - self.taken_out
-        self.current_batch = None
-        self.taken_out = None
-        self.sections[0] += self.sections[1]
-        self.sections.pop(1)
-        self.sections.append (np.zeros(self.shape))
-
-    def check(self):
-        return
-        res = self.model.matrix[self.segment].copy()
-        for section in self.sections:
-            res -= section
-        res -= self.leftover
-        if np.amin(res) < -0.00000001:
-            raise EvaluationError("after-distribution corrupted")
+        y = 0
+        if self.incoming > 0:
+            y = self.incoming / (self.total * (1 - self.sections[0]) + self.incoming)
+        self.sections.pop(0)
+        self.sections.append (0)
+        for i in range(len(self.timeshares)):
+            self.sections[i] += y * self.timeshares[i]
+        self.normalize()
+        self.total = self.model.matrix[self.segment].sum()
+        self.incoming = 0
 
     @staticmethod
     def after_fix(delay):
@@ -153,19 +118,14 @@ class AfterDistribution:
         return shares
 
     @staticmethod
-    def distribute_transfer(sin, sout, transfer, srckey):
+    def distribute_transfer(sin, sout, transfer):
         for adist in AfterDistribution.distributions.values():
-            adist.distribute (sin, sout, transfer, srckey)
-
-    @staticmethod
-    def apply_afters():
-        for adist in AfterDistribution.distributions.values():
-            adist.apply()
+            adist.distribute (sin, sout, transfer)
 
     @staticmethod
     def apply_checks():
         for adist in AfterDistribution.distributions.values():
-            adist.check()
+            pass
 
     @staticmethod
     def tickover_all():

@@ -2,6 +2,7 @@ from dynamod.core import *
 from dynamod.evaluation import *
 from dynamod.actionstack import *
 from dynamod.afterdist import *
+from dynamod.segop import *
 from dynamod.checks import *
 from dynamod.partition import Partition
 from dynamod.history import History
@@ -31,12 +32,15 @@ class DynaModel:
         try:
             with Action("initializing model", line=False):
                 self.baseStore = self.build_basestore()
-                self.context = DynaContext(self, Partition(self))
                 self.attSystem = AttributeSystem(self)
+                self.context = DynaContext(self, Segop(self))
                 for name, attDesc in self.attDescs.items():
                     self.attSystem.addAttribute(name, attDesc)
-                self.context.partition.initialize()
+                self.context.onseg = Segop(self)
+                self.all_none = [None for att in self.attSystem.attributes]
                 self.matrix = np.array(self.attSystem.build_matrix())
+                self.incoming = np.zeros_like(self.matrix)
+                self.outgoing = np.zeros_like(self.matrix)
                 self.tick = 0
                 AfterDistribution.distributions = {}
                 self.history = History(self)
@@ -51,10 +55,14 @@ class DynaModel:
             report_actions(e)
             exit(1)
 
-    def evalExpr (self, expr):
+    def evalExpr (self, expr, onseg=None):
+        if onseg is not None:
+            self.context.onseg = onseg
         return evalExpression(expr, self.context)
 
-    def evalCond(self, expr):
+    def evalCond(self, expr, onseg=None):
+        if onseg is not None:
+            self.context.onseg = onseg
         return evalCondition(expr, self.context)
 
     def tprint(self, *text):
@@ -68,7 +76,7 @@ class DynaModel:
         self.srcfile = keep
 
     def trace_on(self, map, split_by=None):
-        self.trace_for = tuple([att.values.index(map[att.name]) if att.name in map else NOSLICE for att in self.attSystem.attributes])
+        self.trace_for = tuple([att.indexof(map[att.name]) if att.name in map else NOSLICE for att in self.attSystem.attributes])
         self.trace_split = None
         if split_by is not None:
             self.trace_split = 0
@@ -86,6 +94,26 @@ class DynaModel:
         if self.trace_split is None:
             return res.sum()
         return res.sum(self.trace_split)
+
+    def attribute(self, axis):
+        try:
+            return self.attSystem.attr_map[axis]
+        except ValueError:
+            raise ConfigurationError("unknown attribute '" + axis + "'")
+        
+    def indexof (self, axis, value):
+        att = self.attribute(axis)
+        try:
+            return (att.index, att.indexof(value))
+        except ValueError:
+            raise ConfigurationError("unknown value '" + value + "' for attribute'" + axis + "'")
+
+    def attindex (self, axis, value):
+        att = self.attribute(axis)
+        try:
+            return (att, att.indexof(value))
+        except ValueError:
+            raise ConfigurationError("unknown value '" + value + "' for attribute'" + axis + "'")
 
     def step(self):
         try:
@@ -109,7 +137,9 @@ class DynaModel:
                 self.enter_local_context()
                 self.tprint("perform", name)
                 try:
-                    self.perform_autosplit_steps (prog, name)
+                    onsegs = self.perform_autosplit_steps (prog, name)
+                    if not self.simulate:
+                        self.apply_changes (onsegs)
                 except MissingAxis as miss_axis:
                     raise miss_axis
                 finally:
@@ -123,21 +153,22 @@ class DynaModel:
         else:
             splits = []
         try:
-            self.perform_split_steps(prog, splits.copy())
+            return self.perform_split_steps(prog, Segop(self), splits.copy())
         except MissingAxis as miss_axis:
             splits.append(miss_axis.axis)
             self.tprint("add axis", miss_axis, "to", name)
             self.autosplits[name] = splits
             raise miss_axis
 
-    def perform_split_steps (self, prog, splits):
+    def perform_split_steps (self, prog, onseg:Segop, splits):
         if len(splits) == 0:
-            self.perform_steps(prog)
-            return
+            return self.perform_steps(prog, onseg)
         axis = splits.pop()
-        values = self.attSystem.attr_map[axis].values
-        for v in values:
-            self.perform_steps_on(prog, self.context.restricted(axis, v), splits.copy())
+        att = self.attribute(axis)
+        onsegs = []
+        for seg in onseg.split_on_axis(att.index):
+            onsegs.extend(self.perform_split_steps(prog, seg, splits.copy()))
+        return onsegs
 
 
     def enter_local_context(self):
@@ -163,142 +194,159 @@ class DynaModel:
         AfterDistribution.tickover_all()
         self.tick += 1
 
-    def perform_steps(self, steps):
+    def perform_steps(self, steps, onseg:Segop, alias=None):
+        if alias is not None:
+            self.context.values.put(alias, Partition(self, onseg))
+        onsegs = [onseg]
         for step in steps:
-            self.perform_step(step)
+            nextsegs = []
+            for seg in onsegs:
+                nextsegs.extend (self.perform_step(step, seg))
+            onsegs = nextsegs
+        return onsegs
 
-    def perform_step(self, op):
+    def perform_step(self, op, onseg:Segop):
         with Action(op=op):
             if isinstance(op, DynamodElseList):
-                self.perform_restrictions(op)
+                return self.perform_restrictions(op, onseg)
             elif isinstance(op, DynamodAfter):
-                self.perform_after (op)
+                return self.perform_after (op, onseg)
             elif isinstance(op, DynamodAction):
-                self.perform_action (op)
+                return self.perform_action (op, onseg)
             elif isinstance(op, DynamodVarDef):
-                self.perform_vardef (op)
+                self.perform_vardef (op, onseg)
+                return [onseg]
             else:
                 raise ConfigurationError("unknown progression operarion: " + op, op.ctx)
 
-    def perform_action (self, op:DynamodAction):
+    def perform_action (self, op:DynamodAction, onseg: Segop):
+        att = self.attribute(op.axis)
         if isinstance(op.state, str):
-            self.set_state(op.axis, op.state)
+            ivalue = att.indexof(op.state)
+            if onseg.needs_split(att.index, ivalue):
+                onsegs = onseg.split_on_att(att.index, ivalue)
+                onsegs[1].set_value(att.index, ivalue)
+                return onsegs
+            onseg.set_value(att.index, ivalue)
+            return [onseg]
         elif isinstance(op.state, dict):
             shares = {}
             for state, share in op.state.items():
-                shares[state] = self.evalExpr(share)
+                shares[att.indexof(state)] = self.evalExpr(share, onseg)
             normalize_map(shares, op.axis, op.ctx)
-            for state, share in shares.items():
-                self.set_state(op.axis, state, share)
+            return onseg.split_by_shares(att.index, shares)
         else:
             raise ConfigurationError("unknown state description: " + op.state, op.ctx)
 
-    def perform_after (self, op:DynamodAfter):
+    def apply_changes(self, onsegs):
+        for seg in onsegs:
+            if seg.change != self.all_none:
+                self.apply_change(seg)
+        self.matrix += (self.incoming - self.outgoing)
+        self.incoming = np.zeros_like(self.matrix)
+        self.outgoing = np.zeros_like(self.matrix)
+        if self.check:
+            check_total(self)
+            check_nonnegatives(self)
+
+
+    def apply_change(self, onseg):
+        sout, sin, tosum = onseg.apply()
+        transfer = onseg.share * self.matrix[sout]
+        if self.trace and self.trace_for is None:
+            self.tprint(str(onseg) + ": " + str(transfer.sum()))
+
+        self.outgoing[sout] += transfer
+        if tosum is not None:
+            self.incoming[sin] += transfer.sum(tosum)
+        else:
+            self.incoming[sin] += transfer
+
+        AfterDistribution.distribute_transfer(sin, sout, transfer)
+        if self.check:
+            check_total(self)
+            check_nonnegatives(self)
+
+    def calc_after_share(self, op, onseg):
+        after = AfterDistribution.get_distribution(self, op, onseg.seg)
+        return after.get_share()
+
+    def perform_after (self, op:DynamodAfter, onseg):
         with Action("perform after", op=op):
-            self.context.push_partition(self.context.partition.with_after(op))
-            try:
-                self.perform_steps(op.block)
-            finally:
-                self.context.pop_partition()
-        return
+            prob = self.calc_after_share(op, onseg)
+            both = onseg.split_on_prob(prob)
+            onsegs = self.perform_steps(op.block, both[0])
+            onsegs.append(both[1])
+        return onsegs
 
-    def perform_vardef (self, op:DynamodVarDef):
-        self.context.values.put(op.varname, self.evalExpr(op.expression))
+    def perform_vardef (self, op:DynamodVarDef, onseg:Segop):
+        self.context.values.put(op.varname, self.evalExpr(op.expression, onseg))
 
-    def perform_restrictions (self, op:DynamodElseList):
-        total_prob = 1
+    def perform_restrictions (self, op:DynamodElseList, onseg):
+        onsegs = []
         axes = set()
         axvalues = set()
         for restr in op.list:
             with Action("perform conditional", op=restr):
                 if restr.type == 'if':
-                    is_true = self.evalCond(restr.cond)
+                    is_true = self.evalCond(restr.cond, onseg)
                     if not is_true:
                         continue
-                    total_prob = 0
-                    self.perform_on (restr, None)
+                    return self.perform_steps (restr.block, onseg, restr.alias)
                 elif isinstance(restr.cond, DynamodAxisValue):
                     axval = restr.cond
                     axes.add(axval.axis)
+                    att = self.attribute(axval.axis)
+                    if len(axes) > 1:
+                        raise ConfigurationError("sequence of for-conditions must use same attribute")
                     value = axval.value
                     if isinstance(value, list):
                         axvalues.update(value)
                         for v in value:
-                            self.perform_on (restr, self.context.restricted(axval.axis, v))
+                            ivalue = att.indexof(v)
+                            if not onseg.needs_split(att.index, ivalue):
+                                raise ConfigurationError("redundant or contradictive for-condition")
+                            both = onseg.split_on_att(att.index, ivalue)
+                            onsegs.extend (self.perform_steps(restr.block, both[0], restr.alias))
+                            onseg = both[1]
                     else:
-                        value = self.evalExpr(value)
+                        value = self.evalExpr(value, onseg)
                         axvalues.add(value)
-                        self.perform_on(restr, self.context.restricted(axval.axis, value))
+                        ivalue = att.indexof(value)
+                        if onseg.needs_split(att.index, ivalue):
+                            both = onseg.split_on_att(att.index, ivalue)
+                            onsegs.extend (self.perform_steps(restr.block, both[0], restr.alias))
+                            onseg = both[1]
+                        elif onseg.has_value(att.index, ivalue):
+                            onsegs.extend (self.perform_steps(restr.block, onseg, restr.alias))
+
                 else:
-                    prob = self.evalExpr(restr.cond)
-                    total_prob -= prob
-                    self.perform_on (restr, self.context.with_prob(prob))
+                    if len(axes) > 0:
+                        raise ConfigurationError("cannot combine attribute and probability conditions")
+                    if len(onsegs) > 0:
+                        raise ConfigurationError("cannot chain probability conditions, must use 'otherwise'")
+                    prob = self.evalExpr(restr.cond, onseg)
+                    both = onseg.split_on_prob(prob)
+                    onsegs = self.perform_steps(restr.block, both[0])
+                    if op.otherwise is None:
+                        onsegs.append(both[1])
+                    else:
+                        onsegs.extend (self.perform_steps (op.otherwise, both[1]))
+                    return onsegs
 
         if op.otherwise is not None:
-            if total_prob != 1:
-                if len(axes) != 0:
-                    raise ConfigurationError("cannot use otherwise after mixed axis/probability restrictions", op.otherwise.ctx)
-                self.perform_on(restr, self.context.with_prob(1-total_prob))
-                return
-            if len(axes) > 1:
-                raise ConfigurationError("cannot use otherwise after restrictions over multiple axes", op.otherwise.ctx)
             axis = axes.pop()
-            others = set(self.attSystem.attr_map[axis].values) - axvalues
+            others = set(self.attribute(axis).values) - axvalues
             for v in others:
-                self.perform_on(restr, self.context.restricted(axis, v))
-
-    def perform_on(self, restr:DynamodRestriction, partition):
-        with Action("perform segment", op=restr):
-            if restr.alias is not None:
-                self.context.values.put(restr.alias, partition)
-            self.context.push_partition(partition)
-            try:
-                self.perform_steps(restr.block)
-            finally:
-                self.context.pop_partition()
-
-    def perform_steps_on(self, prog:list, partition, splits):
-        self.context.push_partition(partition)
-        try:
-            self.perform_split_steps(prog, splits)
-        finally:
-            self.context.pop_partition()
-
-    def set_state(self, axis, value, share=1):
-        with Action("set " + axis + " to " + value, line=False):
-            partition = self.context.partition
-            if share != 1:
-                partition = partition.with_prob(share)
-            att = self.attSystem.attr_map[axis]
-            from_values = None
-            if axis in partition.given:
-                if not partition.has_segment(axis, value):
-                    self.change_state(partition, axis, value)
-                else:
-                    from_values = partition.given[att.index]
-            else:
-                from_values = att.values
-            if from_values is not None:
-                for from_value in from_values:
-                    if from_value != value:
-                        self.change_state(partition.restricted(axis, from_value), axis, value)
-
-    def change_state(self, from_partition, axis, to_value):
-        to_partition = from_partition.restricted(axis, to_value)
-        sin = to_partition.segment()
-        sout = from_partition.segment()
-        transfer = from_partition.transfer()
-        if self.trace and self.trace_for is None:
-            self.tprint(
-                "in (" + from_partition.describe() + ") set " + axis + " to " + to_value + ": " + str(transfer.sum()))
-        if not self.simulate:
-            self.matrix[sin] += transfer
-            self.matrix[sout] -= transfer
-            AfterDistribution.distribute_transfer(sin, sout, transfer, from_partition.srckey())
-            if self.trace_for is not None:
-                check_changes(self, sin, sout, transfer)
-            if self.check:
-                check_nonnegatives(self)
+                ivalue = att.indexof(v)
+                if not onseg.needs_split(att.index, ivalue):
+                    raise ConfigurationError("redundant or contradictive otherwise")
+                both = onseg.split_on_att(att.index, ivalue)
+                onsegs.extend (self.perform_steps(op.otherwise, both[0]))
+                onseg = both[1]
+        else:
+            onsegs.append (onseg)
+        return onsegs
 
     def invokeFunc(self, funcname, args):
         if funcname not in self.functions:
@@ -330,9 +378,7 @@ class DynaModel:
         self.attDescs[name] = attdesc
 
     def full_partition(self):
-        part = Partition(self)
-        part.initialize()
-        return part
+        return Partition(self)
 
 class AttributeSystem:
     """holds all properties"""
@@ -367,8 +413,14 @@ class Attribute:
         self.values = dp.values
         self.value_map = {}
         for v in dp.values:
-            self.value_map[v] = self.values.index(v)
+            self.value_map[v] = self.indexof(v)
         self.shares = ShareSystem (self, dp.shares)
+
+    def indexof (self, value):
+        try:
+            return self.values.index(value)
+        except ValueError:
+            raise ConfigurationError("unknown value '" + value + "' for attribute'" + self.name + "'")
 
     def build_shares (self, given:dict[str,str]):
         return self.shares.build_shares (given)
@@ -486,7 +538,7 @@ class ConditionalShareValue(ConditionalShares):
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
         self.model = model
-        self.here = {'ALL': self.all, 'CURRENT': self.current, 'day': self.tick, 'time': self.tick}
+        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick}
 
     def get(self, key):
         if key in self.here:
@@ -496,7 +548,7 @@ class GlobalStore(ImmutableMapStore):
         return self.model.full_partition()
 
     def current(self):
-        return self.model.context.partition
+        return self.model.context.segop
 
     def tick(self):
         return self.model.tick

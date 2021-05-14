@@ -100,7 +100,7 @@ model:
   ;
   
 model_part:
-  INCLUDE ':' PATH NEWLINE                            #model_inc
+  INCLUDE ':' STRING NEWLINE                          #model_inc
   | PARAMETERS ':' NEWLINE INDENT parameters DEDENT   #model_pars
   | ATTRIBUTES ':' NEWLINE INDENT attributes DEDENT   #model_attribs
   | FORMULAS ':' NEWLINE INDENT formulas DEDENT       #model_formulas
@@ -240,7 +240,7 @@ results:
   ;
   
 result:
-  NAME '=' expression NEWLINE             
+  NAME ':' expression NEWLINE             
   ;
                  
 formulas: 
@@ -290,7 +290,8 @@ expval:
   ;
   
 term:
-  term '*' factor                         #term_mul
+  term '**' factor                        #term_exp
+  | term '*' factor                       #term_mul
   | term '/' factor                       #term_div
   | factor                                #term_factor
   ;
@@ -310,6 +311,7 @@ primary:
   | NAME OPEN_PAREN arguments? CLOSE_PAREN              #primary_func
   | primary '.' NAME OPEN_PAREN arguments? CLOSE_PAREN  #primary_method
   | NAME                                                #primary_name
+  | STRING                                              #primary_string
   | partition                                           #primary_partition
   | OPEN_BRACK partition CLOSE_BRACK                    #primary_share
   | OPEN_BRACK part=partition '|' base=partition CLOSE_BRACK      #primary_rel_share
@@ -317,6 +319,8 @@ primary:
 
 partition:
   NAME                                    #part_name  
+  | partition '.' NAME OPEN_PAREN arguments? CLOSE_PAREN  #part_method
+  | OPEN_PAREN partition CLOSE_PAREN      #part_expr
   | segment                               #part_segment
   | partition WITH segment                #part_with
   ;
@@ -405,8 +409,9 @@ NAME
  : ID_START ID_CONTINUE*
  ;
 
-PATH
+STRING
  : '\'' ~[\\\r\n\f']* '\''
+ | '"' ~[\\\r\n\f"]* '"'
  ;
 
 NUMBER
