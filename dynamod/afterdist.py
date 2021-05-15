@@ -28,6 +28,7 @@ class AfterDistribution:
         self.init_sections()
         self.total = self.model.matrix[self.segment].sum()
         self.incoming = 0
+        self.cache = {}
 
     def calc_rfactor (self, timeshares):
         r = 0
@@ -58,11 +59,24 @@ class AfterDistribution:
     def describe(self):
         return "after." + self.dist
 
-    def distribute (self, sin, sout, transfer):
-        ssin, tr_sin, my_sin = intersect(sin, self.segment)
-        ssout, tr_sout, my_sout = intersect(sout, self.segment)
-        if ssout is None and ssin is not None:
-            self.incoming += transfer.sum()
+    def distribute (self, sin, sout, transfer, key):
+        res = self.get_cached (key)
+        if res is None:
+            res = leads_into (self.segment, sout, sin)
+            self.put_cached (key, res)
+        if res:
+            self.add_in(transfer)
+
+    def add_in(self, transfer):
+        self.incoming += transfer.sum()
+
+    def get_cached(self, key):
+        if key in self.cache:
+            return self.cache[key]
+        return None
+
+    def put_cached(self, key, res):
+        self.cache[key] = res
 
     def tickover (self):
         y = 0

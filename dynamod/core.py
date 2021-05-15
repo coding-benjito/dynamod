@@ -26,6 +26,28 @@ def deslice(org):
 def reslice(org):
     return tuple([NOSLICE if x is None else x for x in org])
 
+def leads_into(seg, sout, sin):
+    outside = False
+    for (ihere, ifrom, ito) in zip(seg, sout, sin):
+        #rules: no lists in ifrom and ito
+        #       if one of ifrom/ito is NOSLICE, then the other one is NOSLICE too
+        if ihere is not NOSLICE and ifrom is not NOSLICE:
+            if ifrom == ito:
+                if ihere != ifrom:
+                    return False    #doesn't lead in
+            else:
+                if isinstance(ihere, list):
+                    if ito not in ihere:
+                        return False    #doesn't lead in
+                    if ifrom not in ihere:
+                        outside = True       #may lead out
+                else:
+                    if ito != ihere:
+                        return False    #doesn't lead in
+                    if ifrom != ihere:
+                        outside = True      #may lead out
+    return outside
+
 def intersect(seg1, seg2):
     res = []
     sub1 = []

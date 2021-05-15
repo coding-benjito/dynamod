@@ -250,6 +250,7 @@ class DynaModel:
 
 
     def apply_change(self, onseg):
+        key = onseg.as_key()
         for sout, sin in onseg.to_apply():
             transfer = onseg.share * self.matrix[sout]
             if self.trace and self.trace_for is None:
@@ -259,7 +260,7 @@ class DynaModel:
             self.incoming[sin] += transfer
 
             for adist in self.distributions.values():
-                adist.distribute(sin, sout, transfer)
+                adist.distribute(sin, sout, transfer, key)
         if self.check:
             check_total(self)
             check_nonnegatives(self)

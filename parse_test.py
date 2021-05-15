@@ -8,8 +8,8 @@ import pandas as pd
 import numpy as np
 from  dynamod.parse_helper import *
 
-profile = False
-runs = 200
+profile = True
+runs = 800
 np.seterr(all='raise')
 
 model = parse_model ("t4.mod", trace=False)

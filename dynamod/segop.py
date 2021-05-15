@@ -156,6 +156,9 @@ class Segop:
             reslist.extend(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalue)).to_apply(mylist))
         return reslist
 
+    def as_key(self):
+        return (tuple(tuple(x) if isinstance(x, list) else x for x in self.seg), tuple(self.change))
+
     def __str__(self):
         text = ""
         if self.share != 1:
