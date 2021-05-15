@@ -100,7 +100,7 @@ model:
   ;
   
 model_part:
-  INCLUDE ':' STRING NEWLINE                          #model_inc
+  EXTENDS ':' STRING NEWLINE                          #model_inc
   | PARAMETERS ':' NEWLINE INDENT parameters DEDENT   #model_pars
   | ATTRIBUTES ':' NEWLINE INDENT attributes DEDENT   #model_attribs
   | FORMULAS ':' NEWLINE INDENT formulas DEDENT       #model_formulas
@@ -185,11 +185,11 @@ segment:
   ;
              
 values: 
-  OPEN_PAREN vals+=NAME (',' vals+=NAME)* CLOSE_PAREN 
+  OPEN_BRACK vals+=NAME (',' vals+=NAME)* CLOSE_BRACK 
   ;
 
 expression_list: 
-  OPEN_PAREN exprs+=expression (',' exprs+=expression)* CLOSE_PAREN 
+  OPEN_BRACK exprs+=expression (',' exprs+=expression)* CLOSE_BRACK
   ;
 
 progressions: 
@@ -313,8 +313,8 @@ primary:
   | NAME                                                #primary_name
   | STRING                                              #primary_string
   | partition                                           #primary_partition
-  | OPEN_BRACK partition CLOSE_BRACK                    #primary_share
-  | OPEN_BRACK part=partition '|' base=partition CLOSE_BRACK      #primary_rel_share
+  | '$' OPEN_PAREN partition CLOSE_PAREN                #primary_share
+  | '$' OPEN_PAREN part=partition '|' base=partition CLOSE_PAREN      #primary_rel_share
   ;
 
 partition:
@@ -331,7 +331,7 @@ arguments:
 
 // lexer rules
 
-INCLUDE : 'include';
+EXTENDS : 'extends';
 PARAMETERS : 'parameters';
 ATTRIBUTES : 'attributes';
 PROGRESSION: 'progressions';
@@ -456,7 +456,6 @@ fragment DIGIT
 /// pointfloat    ::=  [intpart] fraction | intpart "."
 fragment POINT_FLOAT
  : INT_PART? FRACTION
- | INT_PART '.'
  ;
 
 /// exponentfloat ::=  (intpart | pointfloat) exponent

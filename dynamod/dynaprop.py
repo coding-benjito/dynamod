@@ -1,8 +1,5 @@
-from dynamod.core import *
 from dynamod.evaluation import *
 from dynamod.actionstack import *
-from dynamod.afterdist import *
-from dynamod.segop import *
 from dynamod.checks import *
 from dynamod.partition import Partition
 from dynamod.history import History
@@ -27,10 +24,11 @@ class DynaModel:
         self.raw_errors = False
         self.simulate = False
         self.ctx_stack = []
+        self.error_stack = None
 
     def initialize(self):
         try:
-            with Action("initializing model", line=False):
+            with Action(self, "initializing model", line=False):
                 self.baseStore = self.build_basestore()
                 self.attSystem = AttributeSystem(self)
                 self.context = DynaContext(self, Segop(self))
@@ -42,7 +40,7 @@ class DynaModel:
                 self.incoming = np.zeros_like(self.matrix)
                 self.outgoing = np.zeros_like(self.matrix)
                 self.tick = 0
-                AfterDistribution.distributions = {}
+                self.distributions = {}
                 self.history = History(self)
                 self.history.store()
                 self.simulate = True
@@ -52,7 +50,7 @@ class DynaModel:
         except Exception as e:
             if self.raw_errors:
                 raise e from None
-            report_actions(e)
+            report_actions(self, e)
             exit(1)
 
     def evalExpr (self, expr, onseg=None):
@@ -117,7 +115,7 @@ class DynaModel:
 
     def step(self):
         try:
-            with Action("progressions for tick " + str(self.tick), line=False):
+            with Action(self, "progressions for tick " + str(self.tick), line=False):
                 self._step()
         except MissingAxis:
             self.tprint("retry step", self.tick)
@@ -127,13 +125,13 @@ class DynaModel:
         except Exception as e:
             if self.raw_errors:
                 raise e from None
-            report_actions(e)
+            report_actions(self, e)
             exit(1)
 
     def _step(self):
         self.init_step()
         for name, prog in self.progressions.items():
-            with Action("perform progression " + name, line=False):
+            with Action(self, "perform progression " + name, line=False):
                 self.enter_local_context()
                 self.tprint("perform", name)
                 try:
@@ -191,7 +189,8 @@ class DynaModel:
         self.history.store()
 
     def tickover(self):
-        AfterDistribution.tickover_all()
+        for adist in self.distributions.values():
+            adist.tickover()
         self.tick += 1
 
     def perform_steps(self, steps, onseg:Segop, alias=None):
@@ -206,7 +205,7 @@ class DynaModel:
         return onsegs
 
     def perform_step(self, op, onseg:Segop):
-        with Action(op=op):
+        with Action(self, op=op):
             if isinstance(op, DynamodElseList):
                 return self.perform_restrictions(op, onseg)
             elif isinstance(op, DynamodAfter):
@@ -251,18 +250,16 @@ class DynaModel:
 
 
     def apply_change(self, onseg):
-        sout, sin, tosum = onseg.apply()
-        transfer = onseg.share * self.matrix[sout]
-        if self.trace and self.trace_for is None:
-            self.tprint(str(onseg) + ": " + str(transfer.sum()))
+        for sout, sin in onseg.to_apply():
+            transfer = onseg.share * self.matrix[sout]
+            if self.trace and self.trace_for is None:
+                self.tprint(str(onseg) + ": " + str(transfer.sum()))
 
-        self.outgoing[sout] += transfer
-        if tosum is not None:
-            self.incoming[sin] += transfer.sum(tosum)
-        else:
+            self.outgoing[sout] += transfer
             self.incoming[sin] += transfer
 
-        AfterDistribution.distribute_transfer(sin, sout, transfer)
+            for adist in self.distributions.values():
+                adist.distribute(sin, sout, transfer)
         if self.check:
             check_total(self)
             check_nonnegatives(self)
@@ -272,7 +269,7 @@ class DynaModel:
         return after.get_share()
 
     def perform_after (self, op:DynamodAfter, onseg):
-        with Action("perform after", op=op):
+        with Action(self, "perform after", op=op):
             prob = self.calc_after_share(op, onseg)
             both = onseg.split_on_prob(prob)
             onsegs = self.perform_steps(op.block, both[0])
@@ -287,7 +284,7 @@ class DynaModel:
         axes = set()
         axvalues = set()
         for restr in op.list:
-            with Action("perform conditional", op=restr):
+            with Action(self, "perform conditional", op=restr):
                 if restr.type == 'if':
                     is_true = self.evalCond(restr.cond, onseg)
                     if not is_true:
@@ -587,7 +584,7 @@ def parse_model (srcfile:str, model=None, trace=False):
     parser.setTrace(trace)
     tree = parser.model()
     if listener.had_error:
-        print("processing terminated due to syntax errors")
+        print("processing terminated due to syntax errors in " + srcfile)
         exit(1)
     if model is None:
         model = DynaModel(srcfile)

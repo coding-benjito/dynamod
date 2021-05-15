@@ -1,5 +1,3 @@
-#include: 'c:/develop/dynamod/basis.mod'
-
 parameters:
 ###########
   asymptomatic_share: 18.4%
@@ -19,18 +17,18 @@ parameters:
 attributes:
 ###########
   age:
-    values: (kid, adult, old)
-    shares: (17%, 60%,   23%)
+    values: [kid, adult, old]
+    shares: [17%, 60%,   23%]
 
   risk:
-    values: (high, moderate, low)
+    values: [high, moderate, low]
     shares:
-      for age=kid: (5%, %%, 70%)      # '%%' stands for the rest to reach 100%
-      for age=old: (60%, %%, 8%)
-      otherwise: (18%, %%, 20%)
+      for age=kid: [5%, %%, 70%]      # '%%' stands for the rest to reach 100%
+      for age=old: [60%, %%, 8%]
+      otherwise: [18%, %%, 20%]
 
   state:
-    values: (susceptible, exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, dead, recovered)
+    values: [susceptible, exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, dead, recovered]
     shares:                               
       susceptible: 90%
       recovered: 6%
@@ -51,9 +49,9 @@ attributes:
       dead: 0
 
   quarantined:
-    values: (yes, no, was)
+    values: [yes, no, was]
     shares:
-      for state in (exposed, asymptomatic, presymptomatic):
+      for state in [exposed, asymptomatic, presymptomatic]:
         yes: 10%
         no: 90%
         was: 0
@@ -76,7 +74,7 @@ formulas:
   Kids: ALL with age=kid
   Adults: ALL with age=adult
   Olds: ALL with age=old
-  infected(X): [X with state=symptomatic] + f_asymptomatic*[X with state=asymptomatic] + f_presymptomatic*[X with state=presymptomatic]
+  infected(X): $(X with state=symptomatic) + f_asymptomatic*$(X with state=asymptomatic) + f_presymptomatic*$(X with state=presymptomatic)
   force(X): infected(X with quarantined=no) + factor_when_quarantined * infected(X with quarantined=yes)
   force_of_infection: 
     for age=kid: contacts_kid_kid * force(Kids) + contacts_kid_adult * force(Adults) + contacts_kid_old * force(Olds)
@@ -84,7 +82,7 @@ formulas:
     for age=old: contacts_kid_old * force(Kids) + contacts_adult_old * force(Adults) + contacts_old_old * force(Olds)
   infection_probability: infections_per_contact * force_of_infection
   Yesterday: ALL.before(1)
-  NewInfections(X,days): [X with quarantined in (yes,was)] - [X.before(days) with quarantined in (yes,was)]
+  NewInfections(X,days): $(X with quarantined in [yes,was]) - $(X.before(days) with quarantined in [yes,was])
 
 #
 # progressions describe the change of attributes over time
@@ -177,21 +175,21 @@ progressions:
       for state=exposed:
         for 1%:
           set quarantined=yes
-      for state in (asymptomatic, presymptomatic):
+      for state in [asymptomatic, presymptomatic]:
         for 3%:
           set quarantined=yes
       for state=symptomatic:
         for 25%:
           set quarantined=yes
     for quarantined=yes:
-      for state in (recovered, dead):
+      for state in [recovered, dead]:
         set quarantined=was
           
 results:
 ########
-  dead_kids: [state=dead with age=kid]
-  exposed: [state=exposed]
-  onceinfected: [quarantined in (yes,was)]
+  dead_kids: $(state=dead with age=kid)
+  exposed: $(state=exposed)
+  onceinfected: $(quarantined in [yes,was])
   r4: NewInfections(ALL,4)/NewInfections(ALL.before(4), 4)
   incidence7 : 100000 * NewInfections(ALL,7)
   dailynew: 80000000 * NewInfections(ALL,1)

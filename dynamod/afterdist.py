@@ -6,15 +6,14 @@ from scipy.stats import norm
 import math
 
 class AfterDistribution:
-    distributions = {}
 
     def get_distribution (model, op:DynamodAfter, segment):
         argvals = [model.evalExpr(arg) for arg in op.args]
         key = (segment, get_line(op.ctx), tuple(argvals))
-        if key in AfterDistribution.distributions:
-            return AfterDistribution.distributions[key]
+        if key in model.distributions:
+            return model.distributions[key]
         dist = AfterDistribution (model, op, segment)
-        AfterDistribution.distributions[key] = dist
+        model.distributions[key] = dist
         return dist
 
     def __init__(self, model, op:DynamodAfter, segment):
@@ -117,17 +116,3 @@ class AfterDistribution:
         shares[-1] += 1 - total
         return shares
 
-    @staticmethod
-    def distribute_transfer(sin, sout, transfer):
-        for adist in AfterDistribution.distributions.values():
-            adist.distribute (sin, sout, transfer)
-
-    @staticmethod
-    def apply_checks():
-        for adist in AfterDistribution.distributions.values():
-            pass
-
-    @staticmethod
-    def tickover_all():
-        for adist in AfterDistribution.distributions.values():
-            adist.tickover()

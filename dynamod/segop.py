@@ -127,32 +127,34 @@ class Segop:
                 splits.append(seg)
         return splits
 
-    #return 3-tuple sout, sin, tosum
-    def apply(self):
+    #return tuple sout, sin for non-list segments
+    def one_apply(self):
         sout = []
         sin = []
-        tosum = []
-        axis = 0
         for on, to in zip(self.seg, self.change):
             if on is None:
                 sout.append(NOSLICE)
                 sin.append(NOSLICE)
-                axis += 1
             else:
                 sout.append(on)
-                if isinstance(on, list):
-                    if to is None:
-                        sin.append(on)
-                    else:
-                        sin.append(to)
-                        tosum.append(axis)
-                    axis += 1
+                if to is None:
+                    sin.append(on)
                 else:
-                    if to is None:
-                        sin.append(on)
-                    else:
-                        sin.append(to)
-        return tuple(sout), tuple(sin), (tuple(tosum) if len(tosum) > 0 else None)
+                    sin.append(to)
+        return tuple(sout), tuple(sin)
+
+    #return list of tuples sout, sin, split by lists in seg
+    def to_apply(self, list_at=None):
+        if list_at == None:
+            list_at = [i for i in range(self.n) if isinstance(self.seg[i], list) ]
+        if len(list_at) == 0:
+            return [self.one_apply()]
+        reslist = []
+        mylist = list_at.copy()
+        iaxis = mylist.pop(0)
+        for ivalue in self.seg[iaxis]:
+            reslist.extend(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalue)).to_apply(mylist))
+        return reslist
 
     def __str__(self):
         text = ""

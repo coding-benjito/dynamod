@@ -37,4 +37,3 @@ def check_correctness(model):
     #matrix = model.matrix + model.incoming + model.outgoing
     if abs(model.matrix.sum() - 1) > 0.00000001:
         raise EvaluationError("matrix total is " + str(model.matrix.sum()))
-    AfterDistribution.apply_checks()

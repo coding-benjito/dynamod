@@ -356,7 +356,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#comp_two_ops.
     def visitComp_two_ops(self, ctx:DynamodParser.Comp_two_opsContext):
-        return BinaryOp(ctx, ctx.op.getText(), self.visit(ctx.op1), self.visit(ctx.op2))
+        return BinaryOp(ctx, ctx.op.text, self.visit(ctx.op1), self.visit(ctx.op2))
 
     # Visit a parse tree produced by DynamodParser#comp_not.
     def visitComp_not(self, ctx:DynamodParser.Comp_notContext):

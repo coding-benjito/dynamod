@@ -17,6 +17,17 @@ def treeDesc (t: Tree, p, indent=0):
             buf.write(treeDesc(t.getChild(i), p, indent) + "\n")
         return buf.getvalue()
 
+def print_tokens (srcfile):
+    from antlr4 import FileStream, CommonTokenStream, Token
+    from dynaparser.DynamodLexer import DynamodLexer
+
+    input = FileStream(srcfile)
+    lexer = DynamodLexer(input)
+    stream = CommonTokenStream(lexer)
+    stream.fill()
+    for token in stream.getTokens(0, 9999999):
+        print (str(token))
+
 class RegisterErrorListener(ErrorListener.ErrorListener):
     def __init__(self):
         self.had_error = False

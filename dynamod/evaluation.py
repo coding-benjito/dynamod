@@ -5,17 +5,19 @@ from dynamod.partition import Partition
 
 class DynamodExpression:
     def __init__(self, model, ctx, name, expr):
+        self.model = model
         self.srcfile = model.srcfile
         self.line = get_line(ctx)
         self.name = name
         self.expr = expr
 
     def evaluate(self, context:DynaContext):
-        with Action("evaluate expression " + self.name, line=self.line):
+        with Action(self.model, "evaluate expression " + self.name, line=self.line):
             return Evaluator(context).evalExpr(self.expr)
 
 class DynamodFunction:
     def __init__(self, model, ctx, name, args, expr):
+        self.model = model
         self.srcfile = model.srcfile
         self.line = get_line(ctx)
         self.name = name
@@ -23,7 +25,7 @@ class DynamodFunction:
         self.expr = expr
 
     def evaluate(self, params, context:DynaContext):
-        with Action("evaluate function " + self.name, line=self.line):
+        with Action(self.model, "evaluate function " + self.name, line=self.line):
             if not isinstance(params, list) or len(params) != len(self.args):
                 raise EvaluationError("failed to invoke '" + self.name + "', wrong number of arguments", self.srcfile, self.line)
             localCtx = MapStore()
@@ -67,7 +69,7 @@ class Evaluator:
         raise ConfigurationError("unknown calculation operator: " + opcode)
 
     def evalCond (self, expr):
-        with Action("evaluate condition", op=expr):
+        with Action(self.model, "evaluate condition", op=expr):
             if isinstance(expr, UnaryOp):
                 if expr.opcode == 'or':
                     for sub in expr.op:
@@ -106,7 +108,7 @@ class Evaluator:
         if isinstance(expr, int) or isinstance(expr, float) or isinstance(expr, str):
             return expr
 
-        with Action("evaluate expression", op=expr):
+        with Action(self.model, "evaluate expression", op=expr):
             if isinstance(expr, UnaryOp):
                 if expr.opcode == 'var':
                     if self.context.values.knows (expr.op):
@@ -191,7 +193,7 @@ class Evaluator:
             raise ConfigurationError("unknown expression rule: " + str(expr))
 
     def eval_restrictions (self, op:DynamodElseList):
-        with Action("evaluate conditional expression", op=op):
+        with Action(self.model, "evaluate conditional expression", op=op):
             for cond_expr in op.list:
                 if cond_expr.type == 'if':
                     if self.evalCond(cond_expr.cond):

@@ -6,11 +6,13 @@ from pstats import SortKey
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from  dynamod.parse_helper import *
 
 profile = False
-runs = 150
+runs = 200
 np.seterr(all='raise')
-model = parse_model ("t3.mod", trace=False)
+
+model = parse_model ("t4.mod", trace=False)
 #model.trace_for = (2, 0, 4, 1)
 #model.check = True
 model.initialize()

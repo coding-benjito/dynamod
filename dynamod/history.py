@@ -1,4 +1,3 @@
-from dynamod.core import *
 from dynamod.segop import *
 import pandas as pd
 
@@ -15,22 +14,23 @@ class History:
         for name, expr in self.model.results.items():
             self.results[name].append (self.model.evalExpr(expr, Segop(self.model)))
 
-    def get_attribute(self, axis, value, start=0):
+    def get_attribute(self, axis, value, start=None, stop=None):
         segment = axval_segment(self.model, axis, value)
-        return [m[segment].sum() for m in self.matrix[start:]]
+        return [m[segment].sum() for m in self.matrix[slice(start,stop,None)]]
 
-    def get_attributes(self, axis, start=0):
+    def get_attributes(self, axis, start=None, stop=None):
         att = self.model.attSystem.attr_map[axis]
         axl = axis_exclude(self.model, axis)
-        data = [m.sum(axis=axl) for m in self.matrix[start:]]
+        data = [m.sum(axis=axl) for m in self.matrix[slice(start,stop,None)]]
         return pd.DataFrame(data, columns=att.values)
 
-    def get_result(self, name, start=0):
-        return self.results[name][start:]
+    def get_result(self, name, start=None, stop=None):
+        return self.results[name][slice(start,stop,None)]
 
-    def get_results(self, start=0):
-        data = {name:(hist[start:]) for (name,hist) in self.results.items()}
+    def get_results(self, names, start=None, stop=None):
+        data = {name:(self.results[name][slice(start,stop,None)]) for name in names}
         return pd.DataFrame(data)
 
-    def all_results(self, start=0):
-        pass
+    def get_all_results(self, start=None, stop=None):
+        data = {name:(hist[slice(start,stop,None)]) for (name,hist) in self.results.items()}
+        return pd.DataFrame(data)
