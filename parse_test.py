@@ -9,10 +9,10 @@ import numpy as np
 from  dynamod.parse_helper import *
 
 profile = True
-runs = 800
+runs = 150
 np.seterr(all='raise')
 
-model = parse_model ("t4.mod", trace=False)
+model = parse_model ("t5.mod", trace=False)
 #model.trace_for = (2, 0, 4, 1)
 #model.check = True
 model.initialize()
@@ -41,5 +41,6 @@ print (model.history.get_result('r4'))
 print (model.history.get_result('incidence7'))
 pd1 = model.history.get_attributes('state')
 pd2 = model.history.get_attributes('quarantined')
-pd.concat([pd1, pd2]).plot()
+#pd.concat([pd1, pd2]).plot()
+pd1.plot()
 plt.show()

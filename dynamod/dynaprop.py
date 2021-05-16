@@ -113,6 +113,10 @@ class DynaModel:
         except ValueError:
             raise ConfigurationError("unknown value '" + value + "' for attribute'" + axis + "'")
 
+    def run(self, runs):
+        for i in range(runs):
+            self.step()
+
     def step(self):
         try:
             with Action(self, "progressions for tick " + str(self.tick), line=False):
