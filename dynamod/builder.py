@@ -1,5 +1,5 @@
-from dynaparser.DynamodVisitor import DynamodVisitor
-from dynaparser.DynamodParser import DynamodParser
+from dynamod.parser.DynamodVisitor import DynamodVisitor
+from dynamod.parser.DynamodParser import DynamodParser
 from antlr4 import ParserRuleContext
 from dynamod.core import *
 
@@ -225,7 +225,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#progression.
     def visitProgression(self, ctx:DynamodParser.ProgressionContext):
-        self.model.addProgression(ctx, ctx.NAME().getText(), self.visit(ctx.progression_block()))
+        self.model.addProgression(ctx, ctx.name.text, self.visit(ctx.progression_block()), ctx.before.text if ctx.before is not None else None)
 
     # Visit a parse tree produced by DynamodParser#progression_block.
     def visitProgression_block(self, ctx:DynamodParser.Progression_blockContext):

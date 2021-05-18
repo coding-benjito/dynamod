@@ -1,4 +1,5 @@
 from recordtype import recordtype
+from collections import OrderedDict
 import random
 import string
 
@@ -79,6 +80,18 @@ def axval_segment (model, axis, value):
 
 def modified_seg(seg, index, value):
     return tuple([value if i==index else seg[i] for i in range(len(seg))])
+
+def insert_at (map:dict, key, value, at):
+    res = OrderedDict()
+    found = False
+    for k, v in map.items():
+        if k == at:
+            res[key] = value
+            found = True
+        res[k] = v
+    if not found:
+        res[key] = value
+    return res
 
 class MissingAxis(Exception):
     def __init__(self, axis):

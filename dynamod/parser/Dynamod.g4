@@ -197,7 +197,7 @@ progressions:
   ;
 
 progression:
-  NAME ':' progression_block
+  name=NAME (AT before=NAME)? ':' progression_block 
   ;
   
 progression_block: 
@@ -340,6 +340,7 @@ RESULTS: 'results';
 CHANGES: 'changes';
 VALUES : 'values';
 SHARES : 'shares';
+AT : 'at';
 FOR : 'for';
 IN : 'in';
 OTHERWISE : 'otherwise';

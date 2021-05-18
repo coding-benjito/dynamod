@@ -18,8 +18,8 @@ def treeDesc (t: Tree, p, indent=0):
         return buf.getvalue()
 
 def print_tokens (srcfile):
-    from antlr4 import FileStream, CommonTokenStream, Token
-    from dynaparser.DynamodLexer import DynamodLexer
+    from antlr4 import FileStream, CommonTokenStream
+    from dynamod.parser.DynamodLexer import DynamodLexer
 
     input = FileStream(srcfile)
     lexer = DynamodLexer(input)

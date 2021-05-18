@@ -6,6 +6,7 @@ from dynamod.history import History
 from collections import OrderedDict
 import json
 import numpy as np
+import random
 
 class DynaModel:
     def __init__(self, srcfile):
@@ -14,6 +15,7 @@ class DynaModel:
         self.formulas = {}
         self.functions = {}
         self.parameters = {}
+        self.userObjects = {}
         self.results = {}
         self.progressions = OrderedDict()
         self.autosplits = {}
@@ -26,9 +28,13 @@ class DynaModel:
         self.ctx_stack = []
         self.error_stack = None
 
-    def initialize(self):
+    def initialize(self, parameters=None, objects=None):
         try:
             with Action(self, "initializing model", line=False):
+                if parameters is not None:
+                    self.parameters.update(parameters)
+                if objects is not None:
+                    self.userObjects.update(objects)
                 self.baseStore = self.build_basestore()
                 self.attSystem = AttributeSystem(self)
                 self.context = DynaContext(self, Segop(self))
@@ -356,7 +362,7 @@ class DynaModel:
         return self.functions[funcname].evaluate (args, self.context)
 
     def build_basestore(self):
-        return GlobalStore(self).extendedBy(ImmutableMapStore(self.parameters)).extendedBy(FormulaStore(self))
+        return GlobalStore(self).extendedBy(ImmutableMapStore(self.parameters)).extendedBy(FormulaStore(self).extendedBy(ImmutableMapStore(self.userObjects)))
 
     def addParameter (self, ctx, name, expr):
         if is_num(expr):
@@ -367,8 +373,11 @@ class DynaModel:
     def addResult (self, ctx, name, expr):
         self.results[name] = DynamodExpression(self, ctx, name, expr)
 
-    def addProgression (self, ctx, name, progressions:list):
-        self.progressions[name] = progressions
+    def addProgression (self, ctx, name, progressions:list, before=None):
+        if before is not None:
+            self.progressions = insert_at(self.progressions, name, progressions, before)
+        else:
+            self.progressions[name] = progressions
 
     def addFormula(self, ctx, name, expr):
         self.formulas[name] = DynamodExpression(self, ctx, name, expr)
@@ -540,7 +549,7 @@ class ConditionalShareValue(ConditionalShares):
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
         self.model = model
-        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick}
+        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick, 'random': self.random}
 
     def get(self, key):
         if key in self.here:
@@ -554,6 +563,10 @@ class GlobalStore(ImmutableMapStore):
 
     def tick(self):
         return self.model.tick
+
+    def random(self):
+        return random.random()
+
 
 class FormulaStore(ImmutableMapStore):
     def __init__(self, model):
@@ -575,9 +588,9 @@ class FormulaStore(ImmutableMapStore):
 
 def parse_model (srcfile:str, model=None, trace=False):
     from antlr4 import FileStream, CommonTokenStream
-    from dynaparser.DynamodLexer import DynamodLexer
-    from dynaparser.DynamodParser import DynamodParser
-    from DynamodBuilder import DynamodBuilder
+    from dynamod.parser.DynamodLexer import DynamodLexer
+    from dynamod.parser.DynamodParser import DynamodParser
+    from dynamod.builder import DynamodBuilder
     from dynamod.parse_helper import RegisterErrorListener
 
     input = FileStream(srcfile)

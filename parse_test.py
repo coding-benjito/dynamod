@@ -1,4 +1,4 @@
-from dynamod.dynaprop import *
+from dynamod.model import *
 import cProfile
 import io
 import pstats

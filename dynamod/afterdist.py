@@ -1,6 +1,5 @@
 import numpy as np
 
-from dynamod.core import *
 from dynamod.segop import *
 from scipy.stats import norm
 import math
@@ -108,7 +107,7 @@ class AfterDistribution:
 
     @staticmethod
     def after_explicit(*args):
-        from dynaprop import normalize_list
+        from model import normalize_list
         return normalize_list(*args, name="after.explicit attributes")
 
 

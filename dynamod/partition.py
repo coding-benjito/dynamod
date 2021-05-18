@@ -1,4 +1,3 @@
-from dynamod.core import *
 from dynamod.afterdist import *
 
 class Partition:

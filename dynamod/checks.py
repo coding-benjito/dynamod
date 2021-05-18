@@ -1,5 +1,3 @@
-import numpy as np
-from dynamod.core import *
 from dynamod.afterdist import *
 
 def check_nonnegatives(model):
