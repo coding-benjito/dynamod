@@ -17,5 +17,8 @@ To enable model extension, Dynamod works with named objects. Any named object de
 
 If the standard means of model description are not sufficient (or too cumbersome), Dynamod can be transparently extended by inserting arbitrary Python objects into Dynamod's namespace and invoking functions on these objects.
 
-An automated parameter fitting algorithm will find values for a given set of parameters that (at least locally) minimizes the difference between a set of results and their respective expected outcomes. (This feature is not yet implemented, but planned for June 2021)
+An automated parameter fitting algorithm finds values for a given set of parameters that (at least locally) minimizes the difference between a set of results and their respective expected outcomes. As target, series of result values can be specified as well as time and/or value of time series maxima and minima. 
+
+The parameter fitting utilizes gradient descent with grid search, integral parameter support and auto-adaptive learning rate. For details see python package "gradescent".
+
 

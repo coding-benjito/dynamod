@@ -36,3 +36,10 @@ class Partition:
         else:
             matrix = self.model.history.matrix[self.model.tick - self.tbefore]
         return self.onseg.share * matrix[reslice(self.onseg.seg)].sum()
+
+    def __str__(self):
+        text = self.onseg.desc()
+        if self.tbefore is not None:
+            text += " (before " + str(self.tbefore) + ")"
+        text += " " + str(self.total())
+        return text

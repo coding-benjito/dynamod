@@ -25,10 +25,13 @@ class History:
         return pd.DataFrame(data, columns=att.values)
 
     def get_result(self, name, start=None, stop=None):
+        pair = name.split('=')
+        if len(pair) == 2:
+            return self.get_attribute(pair[0], pair[1], start, stop)
         return self.results[name][slice(start,stop,None)]
 
     def get_results(self, names, start=None, stop=None):
-        data = {name:(self.results[name][slice(start,stop,None)]) for name in names}
+        data = {name:(self.get_result(name, start, stop)) for name in names}
         return pd.DataFrame(data)
 
     def get_all_results(self, start=None, stop=None):

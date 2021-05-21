@@ -27,6 +27,9 @@ def deslice(org):
 def reslice(org):
     return tuple([NOSLICE if x is None else x for x in org])
 
+def short_str (seg):
+    return '[' + ','.join(':' if s is None or s is NOSLICE else str(s) for s in seg) + ']'
+
 def leads_into(seg, sout, sin):
     outside = False
     for (ihere, ifrom, ito) in zip(seg, sout, sin):

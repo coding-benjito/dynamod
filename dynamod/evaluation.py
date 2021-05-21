@@ -118,10 +118,15 @@ class Evaluator:
 
             if isinstance(expr, BinaryOp):
                 if expr.opcode in ['+', '-', '*', '/', '**']:
+                    if self.model.tracer is not None:
+                        self.model.tracer.begin({'+':'add', '-':'subtract', '*':'multiply', '/':'divide', '**':'exp'}[expr.opcode])
                     op1 = self.evalExpr(expr.op1)
                     op2 = self.evalExpr(expr.op2)
                     if is_num(op1) and is_num(op2):
-                        return self.evalCalculation (expr.opcode, op1, op2)
+                        res = self.evalCalculation (expr.opcode, op1, op2)
+                        if self.model.tracer is not None:
+                            self.model.tracer.end(str(op1) + " " + expr.opcode + " " + str(op2) + " = " + str(res))
+                        return res
                     raise ConfigurationError("illegal calculation operands: " + str(op1) + expr.opcode + str(op2), expr.ctx)
                 if expr.opcode == 'func':
                     args = []

@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/dynamod.iml" filepath="$PROJECT_DIR$/.idea/dynamod.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../gradescent/.idea/gradescent.iml" filepath="$PROJECT_DIR$/../gradescent/.idea/gradescent.iml" />
     </modules>
   </component>
 </project>

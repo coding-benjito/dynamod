@@ -1,6 +1,7 @@
 from dynamod.evaluation import *
 from dynamod.actionstack import *
 from dynamod.checks import *
+from dynamod.tracer import Tracer
 from dynamod.partition import Partition
 from dynamod.history import History
 from collections import OrderedDict
@@ -11,7 +12,6 @@ import random
 class DynaModel:
     def __init__(self, srcfile):
         self.srcfile = srcfile
-        self.parameters = {}
         self.formulas = {}
         self.functions = {}
         self.parameters = {}
@@ -27,6 +27,8 @@ class DynaModel:
         self.simulate = False
         self.ctx_stack = []
         self.error_stack = None
+        self.tracer = None
+        self.builtin = BuiltinFunctions(self)
 
     def initialize(self, parameters=None, objects=None):
         try:
@@ -119,9 +121,14 @@ class DynaModel:
         except ValueError:
             raise ConfigurationError("unknown value '" + value + "' for attribute'" + axis + "'")
 
-    def run(self, runs):
-        for i in range(runs):
+    def run(self, cycles, trace_at=None):
+        for i in range(cycles):
+            if i == trace_at:
+                self.tracer = Tracer()
             self.step()
+            if i == trace_at:
+                self.tracer.finish()
+                self.tracer = None
 
     def step(self):
         try:
@@ -143,6 +150,8 @@ class DynaModel:
         for name, prog in self.progressions.items():
             with Action(self, "perform progression " + name, line=False):
                 self.enter_local_context()
+                if self.tracer is not None:
+                    self.tracer.line("perform " + name)
                 self.tprint("perform", name)
                 try:
                     onsegs = self.perform_autosplit_steps (prog, name)
@@ -170,6 +179,7 @@ class DynaModel:
 
     def perform_split_steps (self, prog, onseg:Segop, splits):
         if len(splits) == 0:
+            self.baseStore.clear_cache()
             return self.perform_steps(prog, onseg)
         axis = splits.pop()
         att = self.attribute(axis)
@@ -190,7 +200,7 @@ class DynaModel:
         self.backup = self.matrix.copy()
 
     def close_step(self):
-        print('.', end='')
+        #print('.', end='')
         self.tickover()
         if self.check:
             check_correctness(self)
@@ -204,6 +214,8 @@ class DynaModel:
         self.tick += 1
 
     def perform_steps(self, steps, onseg:Segop, alias=None):
+        if self.tracer is not None:
+            self.tracer.begin("operate on " + onseg.desc())
         if alias is not None:
             self.context.values.put(alias, Partition(self, onseg))
         onsegs = [onseg]
@@ -212,6 +224,8 @@ class DynaModel:
             for seg in onsegs:
                 nextsegs.extend (self.perform_step(step, seg))
             onsegs = nextsegs
+        if self.tracer is not None:
+            self.tracer.end()
         return onsegs
 
     def perform_step(self, op, onseg:Segop):
@@ -357,12 +371,30 @@ class DynaModel:
         return onsegs
 
     def invokeFunc(self, funcname, args):
+        if self.tracer is not None:
+            key = funcname + "("
+            if args is not None:
+                key += ", ".join(str(arg) for arg in args)
+            key += ")"
+            self.tracer.begin(key)
         if funcname not in self.functions:
+            if hasattr(self.builtin, funcname):
+                method = getattr(self.builtin, funcname)
+                if callable(method):
+                    res = method(*args)
             raise EvaluationError("unknown function: " + funcname)
-        return self.functions[funcname].evaluate (args, self.context)
+        else:
+            res = self.functions[funcname].evaluate (args, self.context)
+        if self.tracer is not None:
+            self.tracer.end(res)
+        return res
 
     def build_basestore(self):
-        return GlobalStore(self).extendedBy(ImmutableMapStore(self.parameters)).extendedBy(FormulaStore(self).extendedBy(ImmutableMapStore(self.userObjects)))
+        store = GlobalStore(self)
+        store = store.extendedBy(ImmutableMapStore(self.parameters))
+        store = store.extendedBy(FormulaStore(self))
+        store = store.extendedBy(ImmutableMapStore(self.userObjects))
+        return store
 
     def addParameter (self, ctx, name, expr):
         if is_num(expr):
@@ -390,6 +422,21 @@ class DynaModel:
 
     def full_partition(self):
         return Partition(self)
+
+    def get_attribute(self, axis, value, start=None, stop=None):
+        return self.history.get_attribute(axis, value, start, stop)
+
+    def get_attributes(self, axis, start=None, stop=None):
+        return self.history.get_attributes(axis, start, stop)
+
+    def get_result(self, name, start=None, stop=None):
+        return self.history.get_result(name, start, stop)
+
+    def get_results(self, names, start=None, stop=None):
+        return self.history.get_results(names, start, stop)
+
+    def get_all_results(self, start=None, stop=None):
+        return self.history.get_all_results(start, stop)
 
 class AttributeSystem:
     """holds all properties"""
@@ -567,6 +614,27 @@ class GlobalStore(ImmutableMapStore):
     def random(self):
         return random.random()
 
+class BuiltinFunctions:
+    def __init__(self, model):
+        self.model = model
+
+    def min(self, *args):
+        return min(*args)
+
+    def max(self, *args):
+        return max(*args)
+
+    def abs(self, x):
+        return abs(x)
+
+    def ceil(self, x):
+        return math.ceil(x)
+
+    def floor(self, x):
+        return math.floor(x)
+
+    def round(self, x):
+        return round(x)
 
 class FormulaStore(ImmutableMapStore):
     def __init__(self, model):
@@ -579,7 +647,11 @@ class FormulaStore(ImmutableMapStore):
             return self.cache[key]
         self.cache[key] = 0
         expr = self.here[key]
+        if self.model.tracer is not None:
+            self.model.tracer.begin (key)
         res = self.model.evalExpr(expr)
+        if self.model.tracer is not None:
+            self.model.tracer.end (res)
         self.cache[key] = res
         return res
 

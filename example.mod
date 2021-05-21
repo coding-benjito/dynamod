@@ -26,11 +26,7 @@ progressions:
     incubation:
         # exposed people getting infectious some (age-dependent) time after exposure
         for state=exposed:
-            days=
-                for age=kid: 5
-                for age=old: 4
-                for age=adult: 6
-            after.fix(days):                      # progression happens after fixed time
+            after.fix(latency_period):                      # progression happens after fixed time
                 set state=
                     asymptomatic: asymptomatic_share
                     presymptomatic: 1 - asymptomatic_share
@@ -110,6 +106,7 @@ progressions:
 
 parameters:
 ###########
+    latency_period: 5
     asymptomatic_share: 18.4%      #how many infections will remain asymptomatic 
     f_asymptomatic : 0.231         #factor for infectiousness relative to symptomatic
     f_presymptomatic : 0.692       #factor for infectiousness relative to symptomatic

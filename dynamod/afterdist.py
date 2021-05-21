@@ -98,11 +98,12 @@ class AfterDistribution:
         len = math.ceil(delay)
         timeshares = [0 for i in range(len+1)]
         if len > delay:
-            timeshares[-1] = len - delay
+            timeshares[-2] = len - delay
             rest = 1 + delay - len
-            timeshares[-2] = rest
+            timeshares[-1] = rest
         else:
             timeshares[-1] = 1
+        #print ("after fix ", delay, " = ", timeshares)
         return timeshares
 
     @staticmethod

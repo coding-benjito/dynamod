@@ -163,6 +163,13 @@ class Segop:
         text = ""
         if self.share != 1:
             text += "for " + str(self.share) + " "
-        text += "on " + str(self.seg)
-        text += " do " + str(self.change)
+        text += "on " + short_str(self.seg)
+        text += " do " + short_str(self.change)
+        return text
+
+    def desc(self):
+        text = ""
+        if self.share != 1:
+            text += str(self.share) + " of "
+        text += short_str(self.seg)
         return text
