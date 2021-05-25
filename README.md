@@ -3,7 +3,7 @@ Dynamod - a tool for modelling infectious diseases
 
 Dynamod is a tool written in Python to build and run compartmental models in epidemiology.
 
-In Dynamod, the model is represented in a [formal model description language](/andromed2/dynamod/blob/master/MODEL_REFERENCE.md). This model file is both human-readable and machine-readable. It can be used to explain and discuss the model, while at the same time feeding the calculation of the model results without any further programming.
+In Dynamod, the model is represented in a [formal model description language](/MODEL_REFERENCE.md). This model file is both human-readable and machine-readable. It can be used to explain and discuss the model, while at the same time feeding the calculation of the model results without any further programming.
 
 Dynamod represents compartments as multi-dimensional combination of attributes (e.g. age, risk group, state of infection, state of vaccination etc.) Initial shares and state transitions along these attribute axes can be modelled as dependent on other attributes.
 
