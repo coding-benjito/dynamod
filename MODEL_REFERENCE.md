@@ -182,4 +182,5 @@ Population segments are primarily used to calculate absolute or relative populat
 - `$(X|Y)` returns the relative share of `X` within `Y`
 
 ## grammar
+<a name="grammar"/>
 The complete formal grammar for Dynamod models can be found [here](dynamod/parser/Dynamod.g4). 
