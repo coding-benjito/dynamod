@@ -11,6 +11,7 @@ Dynamod - model specification reference
   - [formulas](#formulas)
   - [extends](#extends)
 - [expressions](#expressions)
+- [grammar](#grammar)
 
 
 ## Overall Document Structure
@@ -180,3 +181,5 @@ Population segments are primarily used to calculate absolute or relative populat
 - `$(X)` returns the (absolute) share of segment `X` in the population
 - `$(X|Y)` returns the relative share of `X` within `Y`
 
+## grammar
+The complete formal grammar for Dynamod models can be found [here](/andromed2/dynamod/blob/master/dynamod/parser/Dynamod.g4). 
