@@ -27,6 +27,12 @@ class Segop:
             raise self.miss (iaxis)
         return False
 
+    def get_value (self, iaxis):
+        val = self.seg[iaxis]
+        if val is None or isinstance(val, list):
+            raise self.miss (iaxis)
+        return val
+
     def miss (self, iaxis):
         return MissingAxis(self.model.attSystem.attributes[iaxis].name)
 

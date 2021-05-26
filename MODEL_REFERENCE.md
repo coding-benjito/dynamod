@@ -109,7 +109,7 @@ The delay count for the after-operations starts at 0 in the iteration where the 
 
 ##parameters
 <a name="parameters"></a>
-The parameter section defines numeric parameters, which are just numbers with a name. The number given in the model is the default, but the parameter value can be modified "from outside" when the model is calculated or calibrated.
+The parameter section defines numeric parameters, which are just numbers or list of numbers with a name. The value given in the model is the default, but the parameter value can be modified "from outside" when the model is calculated or calibrated.
 
 ##formulas
 <a name="formulas"></a>
@@ -150,6 +150,8 @@ Normal Python-like expressions are available in Dynamod:
 - comparisons (`<, <=, >, >=, !=`)
 - logical (`and, or, not`)
 - numbers (`123, 12.3, 1.2E3, 12%`)
+- lists of expressions (`[a, b, ...]`)
+- accessing lists by index (`a[b]`)  
 - local variable definition (definition by assignment)
 - object member access (`x.y`)
 - object method access (`x.y(…)`)
@@ -157,10 +159,14 @@ Normal Python-like expressions are available in Dynamod:
 - access of local variables, parameters and formulas (by name)
 - Python-style conditional expressions: `<x> if <cond> else <y>`
 
-Objects can be inserted into Dynamod's namespace when initializing the model. There are two predefined variables:
+Objects can be inserted into Dynamod's namespace when initializing the model. There are some predefined variables:
 
 - **ALL**: the total population, which is a starting point for population segments (see below)
 - **day** (or **time**): both refer to the iteration tick count, starting at 0
+- **random** will give a uniformly distributed random variable between 0 and 1
+- **PI** and **E** are the math constants
+
+A list of predefined functions is accessible as well: `min(), max(), abs(), ceil(), floor(), round(), sin(), cos(), tan()`
 
 For top-level expressions like formulas or local variables, a split syntax over population attributes can be used:
 
@@ -183,11 +189,15 @@ A special notation is available to describe population segments. There are sever
 - if `X` is a population segment, `X with attribute=value` is another one (further restricting the segment)
 - if `X` is a population segment, `X with attribute in [value1, value2, …]` is another one (further restricting the segment)
 - if `X` is a population segment, `X.before(D)` is another one, denoting the population segment `D` days earlier. `D` must be an integer value. If `D` is greater than the current iteration count, `X` is returned
+- in segment restrictions and segment list restrictions (see above), the resulting restricted population segment can be given a name: `for X as attribute=value:...`
 
 Population segments are primarily used to calculate absolute or relative population shares. If `X` and `Y` are population segments,
 
 - `$(X)` returns the (absolute) share of segment `X` in the population
 - `$(X|Y)` returns the relative share of `X` within `Y`
+
+A further special notation with population segments is `X.attrib`, where attrib is the name of a model attribute. It returns the value index of the attribute within this population segment. If an attribute 'age' has values: [kid, adult, old], and X is a population segment, X.age can have the values 0, 1 or 2.
+
 
 ## Grammar
 <a name="grammar"></a>

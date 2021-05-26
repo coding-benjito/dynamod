@@ -419,6 +419,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#primary_list.
+    def visitPrimary_list(self, ctx:DynamodParser.Primary_listContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#primary_partition.
     def visitPrimary_partition(self, ctx:DynamodParser.Primary_partitionContext):
         return self.visitChildren(ctx)
@@ -436,6 +441,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#primary_rel_share.
     def visitPrimary_rel_share(self, ctx:DynamodParser.Primary_rel_shareContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#primary_indexed.
+    def visitPrimary_indexed(self, ctx:DynamodParser.Primary_indexedContext):
         return self.visitChildren(ctx)
 
 

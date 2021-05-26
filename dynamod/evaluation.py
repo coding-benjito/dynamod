@@ -114,6 +114,8 @@ class Evaluator:
                     if self.context.values.knows (expr.op):
                         return self.context.values.get (expr.op)
                     raise ConfigurationError("unknown variable: " + expr.op, expr.ctx)
+                if expr.opcode == 'list':
+                    return [self.evalExpr(x) for x in expr.op]
                 raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
 
             if isinstance(expr, BinaryOp):
@@ -136,9 +138,16 @@ class Evaluator:
                     return self.model.invokeFunc (expr.op1, args)
                 if expr.opcode == 'dot':
                     op1 = self.evalExpr(expr.op1)
+                    if isinstance(op1, Partition):
+                        att = self.model.attribute(expr.op2)
+                        return op1.onseg.get_value(att.index)
                     if hasattr(op1, expr.op2):
                         return getattr(op1, expr.op2)
                     raise ConfigurationError("unknown field " + expr.op2, expr.ctx)
+                if expr.opcode == 'index':
+                    op1 = self.evalExpr(expr.op1)
+                    op2 = self.evalExpr(expr.op2)
+                    return op1[op2]
                 if expr.opcode == 'with':
                     if expr.op1 is None:
                         if self.context.values.knows('_SHARE_BASE'):

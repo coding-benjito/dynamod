@@ -310,6 +310,8 @@ primary:
   primary '.' NAME                                      #primary_dot
   | NAME OPEN_PAREN arguments? CLOSE_PAREN              #primary_func
   | primary '.' NAME OPEN_PAREN arguments? CLOSE_PAREN  #primary_method
+  | OPEN_BRACK arguments? CLOSE_BRACK                   #primary_list
+  | primary OPEN_BRACK expression CLOSE_BRACK           #primary_indexed
   | NAME                                                #primary_name
   | STRING                                              #primary_string
   | partition                                           #primary_partition

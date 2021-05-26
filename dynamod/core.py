@@ -8,6 +8,16 @@ NOSLICE = slice(None)
 def is_num (expr):
     return isinstance(expr, int) or isinstance(expr, float)
 
+def as_numlist (expr):
+    res = []
+    if isinstance(expr, UnaryOp) and expr.opcode == 'list':
+        for arg in expr.op:
+            if not is_num(arg):
+                return None
+            res.append(arg)
+        return res
+    return None
+
 def get_line(ctx):
     if ctx is not None:
         sym = None

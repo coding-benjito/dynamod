@@ -359,13 +359,10 @@ class DynaModel:
         if op.otherwise is not None:
             axis = axes.pop()
             others = set(self.attribute(axis).values) - axvalues
-            for v in others:
-                ivalue = att.indexof(v)
-                if not onseg.needs_split(att.index, ivalue):
-                    raise ConfigurationError("redundant or contradictive otherwise")
-                both = onseg.split_on_att(att.index, ivalue)
-                onsegs.extend (self.perform_steps(op.otherwise, both[0]))
-                onseg = both[1]
+            ivalues = [att.indexof(v) for v in others]
+            splits = onseg.split_on_attlist(att.index, ivalues)
+            for s in splits:
+                onsegs.extend (self.perform_steps(op.otherwise, s))
         else:
             onsegs.append (onseg)
         return onsegs
@@ -381,7 +378,11 @@ class DynaModel:
             if hasattr(self.builtin, funcname):
                 method = getattr(self.builtin, funcname)
                 if callable(method):
-                    res = method(*args)
+                    return method(*args)
+            elif funcname in self.userObjects:
+                method = self.userObjects[funcname]
+                if callable(method):
+                    return method(*args)
             raise EvaluationError("unknown function: " + funcname)
         else:
             res = self.functions[funcname].evaluate (args, self.context)
@@ -400,7 +401,10 @@ class DynaModel:
         if is_num(expr):
             self.parameters[name] = expr
         else:
-            raise ConfigurationError("parameter '" + name + "' must be defined as a number")
+            res = as_numlist(expr)
+            if res is None:
+                raise ConfigurationError("parameter '" + name + "' must be defined as a number or list of numbers")
+            self.parameters[name] = res
 
     def addResult (self, ctx, name, expr):
         self.results[name] = DynamodExpression(self, ctx, name, expr)
@@ -596,11 +600,14 @@ class ConditionalShareValue(ConditionalShares):
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
         self.model = model
-        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick, 'random': self.random}
+        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick, 'random': self.random, 'PI': math.pi, 'E': math.e}
 
     def get(self, key):
         if key in self.here:
-            return self.here[key]()
+            obj = self.here[key]
+            if callable(obj):
+                return obj()
+            return obj
 
     def all(self):
         return self.model.full_partition()
@@ -632,6 +639,15 @@ class BuiltinFunctions:
 
     def floor(self, x):
         return math.floor(x)
+
+    def sin(self, x):
+        return math.sin(x)
+
+    def cos(self, x):
+        return math.sin(x)
+
+    def tan(self, x):
+        return math.sin(x)
 
     def round(self, x):
         return round(x)

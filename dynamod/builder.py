@@ -440,6 +440,14 @@ class DynamodBuilder(DynamodVisitor):
     def visitPrimary_dot(self, ctx:DynamodParser.Primary_dotContext):
         return BinaryOp(ctx, 'dot', self.visit(ctx.primary()), ctx.NAME().getText())
 
+    # Visit a parse tree produced by DynamodParser#primary_list.
+    def visitPrimary_list(self, ctx:DynamodParser.Primary_listContext):
+        return UnaryOp(ctx, 'list', self.visit(ctx.arguments()))
+
+    # Visit a parse tree produced by DynamodParser#primary_indexed.
+    def visitPrimary_indexed(self, ctx:DynamodParser.Primary_indexedContext):
+        return BinaryOp(ctx, 'index', self.visit(ctx.primary()), self.visit(ctx.expression()))
+
     # Visit a parse tree produced by DynamodParser#primary_name.
     def visitPrimary_name(self, ctx:DynamodParser.Primary_nameContext):
         return UnaryOp(ctx, 'var', ctx.NAME().getText())
