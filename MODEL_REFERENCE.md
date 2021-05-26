@@ -27,7 +27,7 @@ Model files consist of up to five sections, a minimal model needs two of them. T
 ## attributes
 <a name="attributes"></a>
 
-Each attribute partitions the population into groups, corresponding to the different values of the attribute. A classical SIR model for example only uses one attribute, the infection state, with values susceptible, infected and recovered. You can define as many attributes as you like, like age, risk group, type of virus, vaccination state etc. For each attribute, you enumerate the possible values and their initial shares in the population. The initial share of one attribute's values can depend on the value of other attributes. The set of all attributes partitions the population into a multi-dimensional space of value combinations.
+Each attribute partitions the population into groups, corresponding to the different values of the attribute. A classical SIR model for example only uses one attribute, the infection state, with values susceptible, infected and recovered. You can define as many attributes as needed, like age, risk group, type of virus, vaccination state etc. For each attribute, you enumerate the possible values and their initial shares in the population. The initial share of one attribute's values can depend on the value of other attributes. The set of all attributes partitions the population into a multi-dimensional space of value combinations.
 
 To describe initial shares, you have three options: 
 - list: just a list of numbers, one for each value, that add up to 1
@@ -67,7 +67,7 @@ attributes:
 ## progressions
 <a name="progressions"></a>
 
-Each progression describes a process that leads to a change of one or more attribute values. In the classic SIR model, there are only two transitions: the infection (changing infection state from susceptible to infected) and the recovery (changing the state from infected to recovered). You can define as many progressions as needed to adequately describe your model's dynamic.
+Each progression describes a process that leads to a change of one or more attribute values. In the classical SIR model, there are only two transitions: the infection (changing infection state from susceptible to infected) and the recovery (changing the state from infected to recovered). You can define as many progressions as needed to adequately describe your model's dynamic.
 
 Each progression tells Dynamod what to change and on which segment of the population to change it. What to change is just a series of assignments of the form set attribute=value. For the question on which segment these changes are to be applied, Dynamod has several building blocks. These are:
 
@@ -133,7 +133,7 @@ extends: '<base model path>'
 ```   
 
 must be the first line in the model description. Any named objects (attributes, progressions, parameters, formulas and results in the extension model are added to the base model, possibly replacing any existing object of the same name.
-Since the order of progressions is relevant (they are performen one after another), it is possible to insert a new progression at a specific point into the base model's progression list by using the notation:
+Since the order of progressions is relevant (they are performed one after another), it is possible to insert a new progression at a specific point into the base model's progression list by using the notation:
 
 ```
 progressions:        
@@ -175,7 +175,7 @@ formulas:
             #something completely different
 ```
 
-A special notation is available to describe population segments. There are several ways for this:
+A special notation is available to describe population segments. There are several ways to do this:
 
 - the predefined variable `ALL` (the total population with no restrictions)
 - `attribute=value` (the population segment having the given value for the given attribute
@@ -189,6 +189,6 @@ Population segments are primarily used to calculate absolute or relative populat
 - `$(X)` returns the (absolute) share of segment `X` in the population
 - `$(X|Y)` returns the relative share of `X` within `Y`
 
-## grammar
+## Grammar
 <a name="grammar"></a>
 The complete formal grammar for Dynamod models can be found [here](dynamod/parser/Dynamod.g4). 
