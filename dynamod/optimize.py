@@ -88,9 +88,6 @@ class Target:
     def mean_squared_error(self, calced, expected):
         return mean([(x - y)**2 for x, y in zip(calced, expected)])
 
-    def mean_squared_error(self, calced, expected):
-        return mean([(x - y)**2 for x, y in zip(calced, expected)])
-
     def max_absolute_error(self, calced, expected):
         return max([abs(x - y) for x, y in zip(calced, expected)])
 
