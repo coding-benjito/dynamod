@@ -4,7 +4,7 @@ Dynamod - model specification reference
 ### Table of Contents
 
 - [Overall document structure](#overall-document-structure)
-- model sections:
+- Model sections:
   - [Attributes](#attributes)
   - [Progressions](#progressions)
   - [Parameters](#parameters)
