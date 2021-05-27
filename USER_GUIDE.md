@@ -7,10 +7,10 @@ Once the formal model specification has been written (see [the model reference](
 from dynamod.model import *
 import matplotlib.pyplot as plt
 
-model = parse_model ("example.mod")
-model.initialize ()
-model.run (300)
-df = model.get_attributes ('state')
+model = parse_model('example.mod')
+model.initialize()
+model.run(300)
+df = model.get_attributes('state')
 df.plot()
 plt.show()
 ```
@@ -21,7 +21,7 @@ After the model has been calculated, the time series of the various `state` attr
 
 ## Parsing the model
 
-`parse_model(srcfile)` reads the model description file, applies the Dynamod grammer and returns the compiled dynamic model. Once a model has been parsed, it can be initialized and run several times. 
+`parse_model(srcfile)` reads the model description file, applies the Dynamod grammar and returns the compiled dynamic model. Once a model has been parsed, it can be initialized and run several times.
 
 Should parsing fail, the parser will output a problem description and terminate. In this case, it can be helpful to include the optional parameter `parse_model(srcfile, trace=True)` in order to see the token stream and parser actions leading to the problem reported.     
 
@@ -50,9 +50,9 @@ In general, if a single (one-dimensional) result is requested, it is returned as
 These are the methods available to retrieve results:
 
 ```
-model.get_attribute (attribute, value, start=None, stop=None): returns the share having the given value for the given attribute  
-model.get_attributes (attribute, start=None, stop=None): returns the shares for all the attribute's values 
-model.get_result (name, start=None, stop=None): returns the named result
+model.get_attribute(attribute, value, start=None, stop=None): returns the share having the given value for the given attribute  
+model.get_attributes(attribute, start=None, stop=None): returns the shares for all the attribute's values 
+model.get_result(name, start=None, stop=None): returns the named result
 model.get_results(names, start=None, stop=None): returns all named results (names is an iterable)
 model.get_all_results(start=None, stop=None): returns all named results
 ```
@@ -61,40 +61,40 @@ Attribute value shares can be included in `get_results()` by specifying their na
 
 ## Calibrating the model
 
-Models can be calibrated by automtic parameter fitting. In this process, a specific set of parameters are varied, so that model results are close to their expected values. Specifically, they are varied to find a minimum for a specified error metrics measuring the difference between expected and actual results.
+Models can be calibrated by automtic parameter fitting. In this process, a specific set of parameters are varied, so that model results are close to their expected values. Specifically, they are varied to find a minimum for a specified error metric measuring the difference between expected and actual results.
 
 Dynamod uses the gradient descent algorithms of the Python package [gradescent](https://github.com/andromed2/gradescent). The basic idea of this algorithm:
 
-1. find a starting point: this can be the parameters' default values, or multiple starting points are evaluated by means of a grid search. Using a grid search approach increases the chance to find a global minimum instead of just a local one. If multiple parameters use the grid search, a multi-dimensional grid of initial values is evaluated. Grid search will of course greatly increase the calibration time.
-2. estimate the gradient at this point: by increasing each parameter value by a little dx, the change in the (error) result is recorded. The vector of all the relative changes (dy/dx) is an approximation of the gradient at this point. The negative of this gradient is the fastest way towards lesser error.
-3. find a step size to move along the negative gradient. A backtracking line search algorithm using Armijo conditions is applied for this. 
-4. move the current point by this step
-5. repeat until the maximum number of iterations is reached or no reasonable improvements are made
+1. Find a starting point: this can be the parameters' default values, or multiple starting points are evaluated by means of a grid search. Using a grid search approach increases the chance to find a global minimum instead of just a local one. If multiple parameters use the grid search, a multi-dimensional grid of initial values is evaluated. Grid search will of course greatly increase the calibration time.
+2. Estimate the gradient at this point: by increasing each parameter value by a little dx, the change in the (error) result is recorded. The vector of all the relative changes (dy/dx) is an approximation of the gradient at this point. The negative of this gradient is the fastest way towards lesser error.
+3. Find a step size to move along the negative gradient. A backtracking line search algorithm using Armijo conditions is applied for this. 
+4. Move the current point by this step.
+5. Repeat until the maximum number of iterations is reached or no reasonable improvements are made.
 
 For the practical process of calibration, you create a Calibration object, add a number of parameters that can be modified, add a number of targets (expected model outcomes), and finally run the calibration process.
 
 ### Creating a Calibration object
 
 ```
-cal = Calibration (model, cycles)
+cal = Calibration(model, cycles)
 ```
 You pass the model (i.e. the result of the parse_model() call) and the number of cycles (e.g. days) the model should be run for each calibration step.
 
 ### Add modifiable parameters
 
 ```
-cal.add_variable (name, min=None, max=None, grid=None, integral=False, dx=None)
+cal.add_variable(name, min=None, max=None, grid=None, integral=False, dx=None)
 ```
 - `name`: a parameter name included in the `parameters:` section of the model description
 - `min/max`: limits to the allowable parameter values, if needed
 - `grid`: if specified, `min` and `max` values are also needed. The interval between them is divided into `grid` equal parts, the middle of each of these sub-intervals is one starting point for the grid search. If `grid` is not specified, the model's default value is the starting point for the parameter.
-- `integral`: if set to `True`, this parameter can only have integral values (e.g. days)
-- `dx`: if given, determines the step size for the gradient calculation. If missing, 1/1000 of the initial value is used (if the initial value is 0, `dx` must be specified) 
+- `integral`: if set to `True`, this parameter can only have integer (integral) values (e.g. days)
+- `dx`: if given, determines the step size for the gradient calculation. If missing, 1/1000 of the initial value is used (if the initial value is 0, `dx` must be specified) .
 
 ### Add calibration targets
 
 ```
-cal.add_target (resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error'):
+cal.add_target(resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error'):
 ```
 - `resultname`: the name of a result included in the `results:` section of the model description, or an attribute value share of the form 'attribute=value'
 - `expected`: the expected outcome of the result. This can be an array of same length as the result time series, or a single constant value for the whole time 
