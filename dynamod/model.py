@@ -279,7 +279,8 @@ class DynaModel:
             transfer = onseg.share * self.matrix[sout]
             if self.trace and self.trace_for is None:
                 self.tprint(str(onseg) + ": " + str(transfer.sum()))
-
+            if self.tracer is not None:
+                self.tracer.line(str(onseg) + ": " + str(transfer.sum()))
             self.outgoing[sout] += transfer
             self.incoming[sin] += transfer
 
@@ -378,12 +379,13 @@ class DynaModel:
             if hasattr(self.builtin, funcname):
                 method = getattr(self.builtin, funcname)
                 if callable(method):
-                    return method(*args)
+                    res = method(*args)
             elif funcname in self.userObjects:
                 method = self.userObjects[funcname]
                 if callable(method):
-                    return method(*args)
-            raise EvaluationError("unknown function: " + funcname)
+                    res = method(*args)
+            else:
+                raise EvaluationError("unknown function: " + funcname)
         else:
             res = self.functions[funcname].evaluate (args, self.context)
         if self.tracer is not None:
