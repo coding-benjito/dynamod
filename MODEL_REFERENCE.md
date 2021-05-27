@@ -1,7 +1,7 @@
 Dynamod - model specification reference
 =======================================
 
-###Table of Contents
+### Table of Contents
 
 - [overall document structure](#overall-document-structure)
 - model sections:
@@ -19,15 +19,15 @@ Dynamod - model specification reference
 Dynamod models are written in a formal model description language. The overall syntax of model files follows roughly the concept of Python programs, i.e.:
 
 - Comments can appear everywhere, everything after '#' is treated as comment
-- indentation defines the scope of operations or expressions. Indentation can be defined by spaces or tabs (but do not mix them!)
-- basic syntax for calculations, comparisons, lists etc.
+- Indentation defines the scope of operations or expressions. Indentation can be defined by spaces or tabs (but do not mix them!).
+- Same basic syntax for calculations, comparisons, lists etc.
 
 Model files consist of up to five sections, a minimal model needs two of them. The sections are:
 
 ## attributes
 <a name="attributes"></a>
 
-Each attribute partitions the population into groups, corresponding to the different values of the attribute. A classical SIR model for example only uses one attribute, the infection state, with values susceptible, infected and recovered. You can define as many attributes as needed, like age, risk group, type of virus, vaccination state etc. For each attribute, you enumerate the possible values and their initial shares in the population. The initial share of one attribute's values can depend on the value of other attributes. The set of all attributes partitions the population into a multi-dimensional space of value combinations.
+Each attribute partitions the population into groups (occupying different compartments), corresponding to the different values of the attribute. A classical SIR model for example only uses one attribute, the infection state, with values susceptible, infected and recovered. You can define as many attributes as needed, like age, risk group, type of virus, vaccination state etc. For each attribute, you enumerate the possible values and their initial shares in the population. The initial share of one attribute's values can depend on the value of other attributes. The set of all attributes partitions the population into a multi-dimensional space of value combinations (the compartments).
 
 To describe initial shares, you have three options: 
 - list: just a list of numbers, one for each value, that add up to 1
@@ -46,9 +46,9 @@ attributes:
   state:
     values: [susceptible, exposed, recovered]
     shares: 
-        for age=kid:  [99.9%, 0.1%, 0]    # state share depend on age
-        for age=adult:  [%%, 0.2%, 0.3%]  # Notation '%%' means 'rest to get 100%'
-        for age=old:  [%%, 0.1%, 0.15%]
+        for age=kid: [99.9%, 0.1%, 0]    # state share depend on age
+        for age=adult: [%%, 0.2%, 0.3%]  # notation '%%' means 'rest to get 100%'
+        for age=old: [%%, 0.1%, 0.15%]
         
   risk:
     values: [low, medium, high]
@@ -67,9 +67,9 @@ attributes:
 ## progressions
 <a name="progressions"></a>
 
-Each progression describes a process that leads to a change of one or more attribute values. In the classical SIR model, there are only two transitions: the infection (changing infection state from susceptible to infected) and the recovery (changing the state from infected to recovered). You can define as many progressions as needed to adequately describe your model's dynamic.
+Each progression describes a process that leads to a change of one or more attribute values. In the classical SIR model, there are only two transitions: the infection (changing infection state from susceptible to infected) and the recovery (changing the state from infected to recovered). You can define as many progressions as needed to adequately describe your model's dynamics.
 
-Each progression tells Dynamod what to change and on which segment of the population to change it. What to change is just a series of assignments of the form set attribute=value. For the question on which segment these changes are to be applied, Dynamod has several building blocks. These are:
+Each progression tells Dynamod what to change and on which segment of the population to change it. What to change is just a series of assignments of the form 'set attribute=value'. For the question on which segment these changes are to be applied, Dynamod has several building blocks. These are:
 
 - segment restrictions: `for <attribute>=<value>: …`
 - segment list restrictions: `for <attribute> in [<value1>, <value2>, …]: …`
@@ -107,32 +107,32 @@ The after-operations perform the changes not on some explicit percentage of the 
 
 The delay count for the after-operations starts at 0 in the iteration where the segment is "entered" by another progression. Since after-operations do not start before delay 1, a segment will not be entered and left during the same iteration. The history of "entering" into the segment before the start of iterations cannot be stated explicitly yet. It is deduced by the initial share of the segment and the delay distribution, so that a) it will decrease to zero if no further influx into the segment happens and b) the influx was assumed as constant on each iteration before 0.
 
-##parameters
+## parameters
 <a name="parameters"></a>
 The parameter section defines numeric parameters, which are just numbers with a name. The number given in the model is the default, but the parameter value can be modified "from outside" when the model is calculated or calibrated.
 
-##formulas
+## formulas
 <a name="formulas"></a>
 The formula section defines values and/or functions that can be used in progressions, results or other formulas. They are recalculated on demand in each iteration.
 While local variables can be defined on the spot inside of progressions, the use of formulas is preferred, since the offer a couple of advantages:
 - they can be reused
-- they can be nested (i.e. using one formula inside another one), simplifying and structuring the calculations
+- they can be nested (i.e. using one formula inside another one), thereby simplifying and structuring the calculations
 - they can have parameters
 - they offer extension points to build upon the model (see later)
 
-##results
+## results
 <a name="results"></a>
 The results section can contain any number of specific result values. Each result entry is calculated at each iteration and leads to a time series of result values. These results can later be retrieved as arrays (for a single result) or pandas DataFrames (for multiple results).
 The distribution of attribute values doesn't have to be listed in the results section. Time series for these distributions are automatically recorded and available after the model has run.
 
-##extends
+## extends
 <a name="extends"></a>
 In Dynamod, models can be extended by other models. To extend a model, the extension line:
 ```
 extends: '<base model path>'
 ```   
 
-must be the first line in the model description. Any named objects (attributes, progressions, parameters, formulas and results in the extension model are added to the base model, possibly replacing any existing object of the same name.
+must be the first line in the model description. Any named objects (attributes, progressions, parameters, formulas and results in the extension model) are added to the base model, possibly replacing any existing object of the same name.
 Since the order of progressions is relevant (they are performed one after another), it is possible to insert a new progression at a specific point into the base model's progression list by using the notation:
 
 ```
@@ -142,7 +142,7 @@ progressions:
 
 Without this explicit positioning, new progressions are appended at the end of the existing ones.
 
-##Expressions
+## Expressions
 <a name="expressions"></a>
 Normal Python-like expressions are available in Dynamod:
 
