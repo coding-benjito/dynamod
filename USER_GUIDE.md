@@ -76,6 +76,8 @@ For the practical process of calibration, you create a Calibration object, add a
 ### Creating a Calibration object
 
 ```
+from dynamod.optimize import Calibration
+
 cal = Calibration (model, cycles)
 ```
 You pass the model (i.e. the result of the parse_model() call) and the number of cycles (e.g. days) the model should be run for each calibration step.

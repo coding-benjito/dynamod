@@ -215,7 +215,7 @@ class DynaModel:
 
     def perform_steps(self, steps, onseg:Segop, alias=None):
         if self.tracer is not None:
-            self.tracer.begin("operate on " + onseg.desc())
+            self.tracer.begin("operate on " + onseg.share_desc())
         if alias is not None:
             self.context.values.put(alias, Partition(self, onseg))
         onsegs = [onseg]
@@ -245,6 +245,8 @@ class DynaModel:
     def perform_action (self, op:DynamodAction, onseg: Segop):
         att = self.attribute(op.axis)
         if isinstance(op.state, str):
+            if self.tracer is not None:
+                self.tracer.line("set " + att.name + "=" + op.state)
             ivalue = att.indexof(op.state)
             if onseg.needs_split(att.index, ivalue):
                 onsegs = onseg.split_on_att(att.index, ivalue)
@@ -257,6 +259,8 @@ class DynaModel:
             for state, share in op.state.items():
                 shares[att.indexof(state)] = self.evalExpr(share, onseg)
             normalize_map(shares, op.axis, op.ctx)
+            if self.tracer is not None:
+                self.tracer.line("set " + att.name + "=" + str(shares))
             return onseg.split_by_shares(att.index, shares)
         else:
             raise ConfigurationError("unknown state description: " + op.state, op.ctx)
@@ -274,18 +278,19 @@ class DynaModel:
 
 
     def apply_change(self, onseg):
-        key = onseg.as_key()
+        #key = onseg.as_key()
         for sout, sin in onseg.to_apply():
             transfer = onseg.share * self.matrix[sout]
-            if self.trace and self.trace_for is None:
-                self.tprint(str(onseg) + ": " + str(transfer.sum()))
-            if self.tracer is not None:
-                self.tracer.line(str(onseg) + ": " + str(transfer.sum()))
-            self.outgoing[sout] += transfer
-            self.incoming[sin] += transfer
+            if transfer.sum() > 0:
+                if self.trace and self.trace_for is None:
+                    self.tprint(short_str(sout) + "->" + short_str(sin) + ": " + str(transfer.sum()))
+                if self.tracer is not None:
+                    self.tracer.line(short_str(sout) + "->" + short_str(sin) + ": " + str(transfer.sum()))
+                self.outgoing[sout] += transfer
+                self.incoming[sin] += transfer
 
-            for adist in self.distributions.values():
-                adist.distribute(sin, sout, transfer, key)
+                for adist in self.distributions.values():
+                    adist.distribute(sin, sout, transfer, key=(deslice(sout),deslice(sin)))
         if self.check:
             check_total(self)
             check_nonnegatives(self)

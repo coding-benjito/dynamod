@@ -173,6 +173,10 @@ class Segop:
         text += " do " + short_str(self.change)
         return text
 
+    def share_desc(self):
+        from dynamod.partition import Partition
+        return self.desc() + ": " + str(Partition(self.model, self).total())
+
     def desc(self):
         text = ""
         if self.share != 1:
