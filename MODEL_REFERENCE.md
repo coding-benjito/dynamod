@@ -3,15 +3,16 @@ Dynamod - model specification reference
 
 ###Table of Contents
 
-- [overall document structure](#overall-document-structure)
-- model sections:
+- [Overall document structure](#overall-document-structure)
+- Model sections:
   - [attributes](#attributes)
   - [progressions](#progressions)
   - [parameters](#parameters)
   - [formulas](#formulas)
+  - [results](#results)
   - [extends](#extends)
-- [expressions](#expressions)
-- [grammar](#grammar)
+- [Expressions](#expressions)
+- [Grammar](#grammar)
 
 
 ## Overall Document Structure
@@ -19,15 +20,15 @@ Dynamod - model specification reference
 Dynamod models are written in a formal model description language. The overall syntax of model files follows roughly the concept of Python programs, i.e.:
 
 - Comments can appear everywhere, everything after '#' is treated as comment
-- indentation defines the scope of operations or expressions. Indentation can be defined by spaces or tabs (but do not mix them!)
-- basic syntax for calculations, comparisons, lists etc.
+- Indentation defines the scope of operations or expressions. Indentation can be defined by spaces or tabs (but do not mix them!)
+- Same basic syntax for calculations, comparisons, lists etc.
 
 Model files consist of up to five sections, a minimal model needs two of them. The sections are:
 
 ## attributes
 <a name="attributes"></a>
 
-Each attribute partitions the population into groups, corresponding to the different values of the attribute. A classical SIR model for example only uses one attribute, the infection state, with values susceptible, infected and recovered. You can define as many attributes as needed, like age, risk group, type of virus, vaccination state etc. For each attribute, you enumerate the possible values and their initial shares in the population. The initial share of one attribute's values can depend on the value of other attributes. The set of all attributes partitions the population into a multi-dimensional space of value combinations.
+Each attribute partitions the population into groups (occupying different compartments), corresponding to the different values of the attribute. A classical SIR model for example only uses one attribute, the infection state, with values susceptible, infected and recovered. You can define as many attributes as needed, like age, risk group, type of virus, vaccination state etc. For each attribute, you enumerate the possible values and their initial shares in the population. The initial share of one attribute's values can depend on the value of other attributes. The set of all attributes partitions the population into a multi-dimensional space of value combinations (the compartments).
 
 To describe initial shares, you have three options: 
 - list: just a list of numbers, one for each value, that add up to 1
@@ -47,7 +48,7 @@ attributes:
     values: [susceptible, exposed, recovered]
     shares: 
         for age=kid:  [99.9%, 0.1%, 0]    # state share depend on age
-        for age=adult:  [%%, 0.2%, 0.3%]  # Notation '%%' means 'rest to get 100%'
+        for age=adult:  [%%, 0.2%, 0.3%]  # notation '%%' means 'rest to get 100%'
         for age=old:  [%%, 0.1%, 0.15%]
         
   risk:
@@ -67,7 +68,7 @@ attributes:
 ## progressions
 <a name="progressions"></a>
 
-Each progression describes a process that leads to a change of one or more attribute values. In the classical SIR model, there are only two transitions: the infection (changing infection state from susceptible to infected) and the recovery (changing the state from infected to recovered). You can define as many progressions as needed to adequately describe your model's dynamic.
+Each progression describes a process that leads to a change of one or more attribute values. In the classical SIR model, there are only two transitions: the infection (changing infection state from susceptible to infected) and the recovery (changing the state from infected to recovered). You can define as many progressions as needed to adequately describe your model's dynamics.
 
 Each progression tells Dynamod what to change and on which segment of the population to change it. What to change is just a series of assignments of the form set attribute=value. For the question on which segment these changes are to be applied, Dynamod has several building blocks. These are:
 
@@ -116,7 +117,7 @@ The parameter section defines numeric parameters, which are just numbers or list
 The formula section defines values and/or functions that can be used in progressions, results or other formulas. They are recalculated on demand in each iteration.
 While local variables can be defined on the spot inside of progressions, the use of formulas is preferred, since the offer a couple of advantages:
 - they can be reused
-- they can be nested (i.e. using one formula inside another one), simplifying and structuring the calculations
+- they can be nested (i.e. using one formula inside another one), thereby simplifying and structuring the calculations
 - they can have parameters
 - they offer extension points to build upon the model (see later)
 

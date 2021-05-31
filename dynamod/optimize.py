@@ -20,11 +20,11 @@ class Calibration:
     def add_target(self, resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error'):
         self.targets.append (Target (self.model, resultname, expected, type=type, start=start, stop=stop, weight=weight, metric=metric))
 
-    def add_variable(self, name, min=None, max=None, grid=None, integral=False, dx=None):
+    def add_variable(self, name, min=None, max=None, grid=None, is_int=False, dx=None):
         initial_value = None
         if grid is None:
             initial_value = self.model.parameters[name]
-        par = Parameter(name, initial_value, min=None, max=None, grid=None, integral=False, dx=None)
+        par = Parameter(name, initial_value, min=min, max=max, grid=grid, integral=is_int, dx=dx)
         self.parameters.append(par)
 
     def optimize(self, zoom_limit=1e6, momentum=0, iterations=100, min_improvement=0.0001, trace=True, debug=False):
