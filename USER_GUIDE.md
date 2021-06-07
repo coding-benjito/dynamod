@@ -96,7 +96,7 @@ cal.add_variable (name, min=None, max=None, grid=None, is_int=False, dx=None)
 ### Add calibration targets
 
 ```
-cal.add_target (resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error'):
+cal.add_target (resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error', series_weight=None, user_metric=None):
 ```
 - `resultname`: the name of a result included in the `results:` section of the model description, or an attribute value share of the form 'attribute=value'
 - `expected`: the expected outcome of the result. This can be an array of same length as the result time series, or a single constant value for the whole time 
@@ -107,7 +107,9 @@ cal.add_target (resultname, expected, type='values', start=0, stop=None, weight=
 - `start/stop`: a possible restriction to slice the result's time series values.
 - `weight`: the weight factor to multiply this error term with, before multiple targets are summed up
 - `metric`: how the difference between expected and actual values are measured. Possible values are 'mean_absolute_error', 'mean_squared_error', 'max_absolute_error' and 'median_absolute_error'
-   
+- `series_weight`: (available for metrics 'mean_absolute_error' and 'mean_squared_error'): a list of individual weights for each result series. If present, must be of same length than the series of result values
+- `user_metric`: a user-defined metric function that will be passed two lists (actual result series, expected result series) and must return the non-negative error. If present, the `metric` argument will be ignored 
+
 ### Perform the calibration
 
 Unfortunately, calibration is more art than science. The dependency between the parameters and the results varies wildly, and so some tweaking of the calibration parameters can be necessary. Therefore, the trace-Parameter is set to True by default to allow you to inspect the calibration progress. If the error diminishes steadly (and ideally approaches zero), everything is fine. If not, in trace mode you can probably see what goes wrong: too big or too small steps, focussing on bad local minima, slow convergence etc. In these cases, play around with some of the optimization's parameters and see how the iterations change.

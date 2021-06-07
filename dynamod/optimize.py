@@ -40,7 +40,7 @@ class Calibration:
         return sum(target.get_error() for target in self.targets)
 
 class Target:
-    def __init__(self, model:DynaModel, resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error'):
+    def __init__(self, model:DynaModel, resultname, expected, type='values', start=0, stop=None, weight=1, metric='mean_absolute_error', series_weight=None, user_metric=None):
         self.model = model
         self.resultname = resultname
         self.expected = expected
@@ -48,7 +48,9 @@ class Target:
         self.start = start
         self.stop = stop
         self.weight = weight
+        self.series_weight = series_weight
         self.metric = metric
+        self.user_metric = user_metric
 
     def get_error(self):
         result = self.model.get_result(self.resultname, self.start, self.stop)
@@ -66,6 +68,8 @@ class Target:
             result = [self.get_minmax_point (result)]
             expected = [self.expected]
         try:
+            if self.user_metric is not None:
+                return self.weight * self.user_metric(result, expected)
             method = getattr(self, self.metric)
             return self.weight * method(result, expected)
         except Exception as e:
@@ -83,10 +87,15 @@ class Target:
         return x if find_arg else poly(x)
 
     def mean_absolute_error(self, calced, expected):
-        return mean([abs(x - y) for x, y in zip(calced, expected)])
+        if self.series_weight is None:
+            return mean([abs(x - y) for x, y in zip(calced, expected)])
+        return mean([w * abs(x - y) for x, y, w in zip(calced, expected, self.series_weight)])
+
 
     def mean_squared_error(self, calced, expected):
-        return mean([(x - y)**2 for x, y in zip(calced, expected)])
+        if self.series_weight is None:
+            return mean([(x - y)**2 for x, y in zip(calced, expected)])
+        return mean([w * (x - y)**2 for x, y, w in zip(calced, expected, self.series_weight)])
 
     def max_absolute_error(self, calced, expected):
         return max([abs(x - y) for x, y in zip(calced, expected)])
