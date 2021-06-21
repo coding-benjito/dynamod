@@ -1,7 +1,7 @@
 Dynamod - model specification reference
 =======================================
 
-###Table of Contents
+### Table of Contents
 
 - [Overall document structure](#overall-document-structure)
 - Model sections:
@@ -108,11 +108,11 @@ The after-operations perform the changes not on some explicit percentage of the 
 
 The delay count for the after-operations starts at 0 in the iteration where the segment is "entered" by another progression. Since after-operations do not start before delay 1, a segment will not be entered and left during the same iteration. The history of "entering" into the segment before the start of iterations cannot be stated explicitly yet. It is deduced by the initial share of the segment and the delay distribution, so that a) it will decrease to zero if no further influx into the segment happens and b) the influx was assumed as constant on each iteration before 0.
 
-##parameters
+## parameters
 <a name="parameters"></a>
 The parameter section defines numeric parameters, which are just numbers or list of numbers with a name. The value given in the model is the default, but the parameter value can be modified "from outside" when the model is calculated or calibrated.
 
-##formulas
+## formulas
 <a name="formulas"></a>
 The formula section defines values and/or functions that can be used in progressions, results or other formulas. They are recalculated on demand in each iteration.
 While local variables can be defined on the spot inside of progressions, the use of formulas is preferred, since the offer a couple of advantages:
@@ -121,12 +121,12 @@ While local variables can be defined on the spot inside of progressions, the use
 - they can have parameters
 - they offer extension points to build upon the model (see later)
 
-##results
+## results
 <a name="results"></a>
 The results section can contain any number of specific result values. Each result entry is calculated at each iteration and leads to a time series of result values. These results can later be retrieved as arrays (for a single result) or pandas DataFrames (for multiple results).
 The distribution of attribute values doesn't have to be listed in the results section. Time series for these distributions are automatically recorded and available after the model has run.
 
-##extends
+## extends
 <a name="extends"></a>
 In Dynamod, models can be extended by other models. To extend a model, the extension line:
 ```
@@ -143,7 +143,7 @@ progressions:
 
 Without this explicit positioning, new progressions are appended at the end of the existing ones.
 
-##Expressions
+## Expressions
 <a name="expressions"></a>
 Normal Python-like expressions are available in Dynamod:
 
