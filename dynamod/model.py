@@ -491,10 +491,10 @@ class Attribute:
         except ValueError:
             raise ConfigurationError("unknown value '" + value + "' for attribute'" + self.name + "'")
 
-    def build_shares (self, given:dict[str,str]):
+    def build_shares (self, given:dict):
         return self.shares.build_shares (given)
 
-    def build_matrix (self, given:dict[str,str], base):
+    def build_matrix (self, given:dict, base):
         matrix = []
         quota = self.build_shares(given)
         i = 0
@@ -537,7 +537,7 @@ class ShareSystem:
         else:
             raise ConfigurationError("unrecognized share system for attribute " + att.name)
 
-    def build_shares (self, given:dict[str,str]):
+    def build_shares (self, given:dict):
         if self.share_list is None:
             array = []
             for ax in self.att.values:
@@ -563,7 +563,7 @@ class ConditionalShares:
             raise ConfigurationError("attribute shares can only be switches by axis values")
         self.share = ShareSystem(att, condshare[1])
 
-    def matches (self, given:dict[str,str]):
+    def matches (self, given:dict):
         if not self.axis in given:
             raise ConfigurationError("attribute value for '" + self.axis + "' not defined while evaluating shares of '" + self.att.name + "'")
         if isinstance(self.value, list):
@@ -583,7 +583,7 @@ class ShareValue:
         else:
             self.value = value
 
-    def build_share (self, axvalue:str, given:dict[str,str]):
+    def build_share (self, axvalue:str, given:dict):
         if self.share_list is None:
             return self.att.model.evalExpr (self.value)
         for sl in self.share_list:

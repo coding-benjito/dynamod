@@ -104,6 +104,7 @@ The after-operations perform the changes not on some explicit percentage of the 
 
 - `after.fix(x)`: 100% will be taken after exactly x ticks. If x is not an integer, two ticks are mixed (e.g. with after.fix(3.2) will happen on tick three for 80% of the segment and on tick four for 20%)
 - `after.std(x,s)`: a standard distribution with mean x and deviation s is mapped to time units
+- `after.erlang(k,lmdba)`: an erlang distribution with form parameter `k` and inverse scale parameter `lmbda` is mapped to time units
 - `after.explicit(x1,x2,x3,…)`: a share of x1 will be taken on tick 1, a share of x2 on tick 2 etc., the sum of all xi being 1
 
 The delay count for the after-operations starts at 0 in the iteration where the segment is "entered" by another progression. Since after-operations do not start before delay 1, a segment will not be entered and left during the same iteration. The history of "entering" into the segment before the start of iterations cannot be stated explicitly yet. It is deduced by the initial share of the segment and the delay distribution, so that a) it will decrease to zero if no further influx into the segment happens and b) the influx was assumed as constant on each iteration before 0.

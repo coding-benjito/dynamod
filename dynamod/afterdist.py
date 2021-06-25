@@ -1,7 +1,7 @@
 import numpy as np
 
 from dynamod.segop import *
-from scipy.stats import norm
+from scipy.stats import norm, erlang
 import math
 
 class AfterDistribution:
@@ -24,8 +24,8 @@ class AfterDistribution:
             raise ConfigurationError("unknown after-distrbution " + op.distrib, op.ctx)
         self.argvals = [model.evalExpr(arg) for arg in op.args]
         self.timeshares = self.get_timeshares()
-        self.init_sections()
         self.total = self.model.matrix[self.segment].sum()
+        self.init_sections()
         self.incoming = 0
         self.cache = {}
 
@@ -39,7 +39,7 @@ class AfterDistribution:
         r = self.calc_rfactor(self.timeshares)
         #build [xn, xn-1+xn, ... x1+x2+...+xn]
         factors = np.cumsum(self.timeshares[::-1])[::-1].tolist()
-        self.sections = [r * x for x in factors]
+        self.sections = [self.total * r * x for x in factors]
 
     def get_timeshares(self):
         try:
@@ -113,8 +113,7 @@ class AfterDistribution:
 
 
     @staticmethod
-    def after_std (loc=0, scale=1):
-        cdf = norm(loc, scale).cdf
+    def shares_from_cdf (cdf):
         shares = []
         total = 0
         upper = 0.5
@@ -129,4 +128,14 @@ class AfterDistribution:
             lower = upper - 1
         shares[-1] += 1 - total
         return shares
+
+    @staticmethod
+    def after_std (loc=0, scale=1):
+        cdf = norm(loc, scale).cdf
+        return AfterDistribution.shares_from_cdf (cdf)
+
+    @staticmethod
+    def after_erlang (k, lmbda):
+        cdf = lambda x: erlang.cdf(x, a=k, scale=1/lmbda)
+        return AfterDistribution.shares_from_cdf (cdf)
 
