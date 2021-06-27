@@ -29,8 +29,9 @@ class DynaModel:
         self.error_stack = None
         self.tracer = None
         self.builtin = BuiltinFunctions(self)
+        self.fractions = 1
 
-    def initialize(self, parameters=None, objects=None):
+    def initialize(self, parameters=None, objects=None, fractions=1):
         try:
             with Action(self, "initializing model", line=False):
                 if parameters is not None:
@@ -52,7 +53,9 @@ class DynaModel:
                 self.history = History(self)
                 self.history.store()
                 self.simulate = True
+                self.fractions = 1
                 self.step()
+                self.fractions = fractions
                 self.simulate = False
 
         except Exception as e:
@@ -147,20 +150,22 @@ class DynaModel:
 
     def _step(self):
         self.init_step()
-        for name, prog in self.progressions.items():
-            with Action(self, "perform progression " + name, line=False):
-                self.enter_local_context()
-                if self.tracer is not None:
-                    self.tracer.line("perform " + name)
-                self.tprint("perform", name)
-                try:
-                    onsegs = self.perform_autosplit_steps (prog, name)
-                    if not self.simulate:
-                        self.apply_changes (onsegs)
-                except MissingAxis as miss_axis:
-                    raise miss_axis
-                finally:
-                    self.leave_local_context()
+        for _ in range(self.fractions):
+            self.baseStore.clear_cache()
+            for name, prog in self.progressions.items():
+                with Action(self, "perform progression " + name, line=False):
+                    self.enter_local_context()
+                    if self.tracer is not None:
+                        self.tracer.line("perform " + name)
+                    self.tprint("perform", name)
+                    try:
+                        onsegs = self.perform_autosplit_steps (prog, name)
+                        if not self.simulate:
+                            self.apply_changes (onsegs)
+                    except MissingAxis as miss_axis:
+                        raise miss_axis
+                    finally:
+                        self.leave_local_context()
         if not self.simulate:
             self.close_step()
 
@@ -170,7 +175,7 @@ class DynaModel:
         else:
             splits = []
         try:
-            return self.perform_split_steps(prog, Segop(self), splits.copy())
+            return self.perform_split_steps(prog, Segop(self, share=1/self.fractions), splits.copy())
         except MissingAxis as miss_axis:
             splits.append(miss_axis.axis)
             self.tprint("add axis", miss_axis, "to", name)
@@ -196,7 +201,6 @@ class DynaModel:
         self.context.values = self.context.values.base
 
     def init_step(self):
-        self.baseStore.clear_cache()
         self.backup = self.matrix.copy()
 
     def close_step(self):

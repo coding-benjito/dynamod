@@ -31,6 +31,7 @@ Should parsing fail, the parser will output a problem description and terminate.
 
 - `parameters`: a dictionary mapping parameter names to values, overriding the initial values in the model's `parameters:` section
 - `objects`: a dictionary mapping names to user supplied Python objects, which are inserted into the model's namespace and can be used in expressions
+- `fractions`: (default: 1) if set to an integer k > 1, each iteration is repeated k times, but applied to only 1/k of the population.  
 
 After a model has been run, you must repeat the initialization before running it again.
 
@@ -78,9 +79,9 @@ For the practical process of calibration, you create a Calibration object, add a
 ```
 from dynamod.optimize import Calibration
 
-cal = Calibration (model, cycles)
+cal = Calibration (model, cycles[, fractions])
 ```
-You pass the model (i.e. the result of the parse_model() call) and the number of cycles (e.g. days) the model should be run for each calibration step.
+You pass the model (i.e. the result of the parse_model() call), the number of cycles (e.g. days) the model should be run for each calibration step. Optionally, you can also specify the `fraction` parameter for model initialization.
 
 ### Add modifiable parameters
 

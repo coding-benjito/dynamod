@@ -291,7 +291,7 @@ class DynamodParser ( Parser ):
                      "'changes'", "'values'", "'shares'", "'at'", "'for'", 
                      "'in'", "'otherwise'", "'var'", "'set'", "'as'", "'by'", 
                      "'after'", "'with'", "'if'", "'else'", "'and'", "'or'", 
-                     "'not'", "'<'", "'<='", "'>'", "'>='", "'!='", "'EQ'", 
+                     "'not'", "'<'", "'<='", "'>'", "'>='", "'!='", "'=='", 
                      "'..'", "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>", 
                      "<INVALID>", "<INVALID>", "'.'", "'*'", "':'", "'('", 
                      "')'", "'['", "']'" ]

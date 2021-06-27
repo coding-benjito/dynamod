@@ -11,9 +11,10 @@ def minpos (xdata, ydata):
     x = s.roots()[0]
     return x, poly(x)
 class Calibration:
-    def __init__(self, model:DynaModel, cycles):
+    def __init__(self, model:DynaModel, cycles, fractions=1):
         self.model = model
         self.cycles = cycles
+        self.fractions = fractions
         self.targets = []
         self.parameters = []
 
@@ -35,7 +36,7 @@ class Calibration:
         return optimizer.optimize()
 
     def get_error(self, params):
-        self.model.initialize(params)
+        self.model.initialize(params, fractions=self.fractions)
         self.model.run(self.cycles)
         return sum(target.get_error() for target in self.targets)
 

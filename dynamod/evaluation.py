@@ -195,6 +195,13 @@ class Evaluator:
                         if callable(method):
                             return method(*args)
                     raise ConfigurationError("unknown method '" + methodname + "' on " + str(obj), expr.ctx)
+                if expr.opcode == 'if':
+                    if self.evalCond(expr.op1):
+                        return self.evalExpr(expr.op2)
+                    elif expr.op3 is not None:
+                        return self.evalExpr(expr.op3)
+                    else:
+                        return None
 
                 raise ConfigurationError("unknown expression operation(3): " + expr.opcode, expr.ctx)
 

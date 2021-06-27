@@ -98,7 +98,9 @@ progressions:
                         set hospitalized=yes
 ```
 
-Operations within a progression can be considered to be applied simultaneously: they don't interfere with each other since they operate on non-overlapping segments. On the other hand, different progressions are applied one after another in the sequence they are written in. 
+Operations within a progression can be considered to be applied simultaneously: they don't interfere with each other since they operate on non-overlapping segments. On the other hand, different progressions are applied one after another in the sequence they are written in.
+
+Please note that this approach differs from solving a differential equation numerically, where all changes of iteration n+1 are applied simultaneously to the common result of iteration n. To emulate the differential equation approach, you can use the `fractions` parameter during model initialization. If you set `fractions` to an integer k > 1, dynamod will repeat the progressions of each iteration k times, but apply the progressions to just 1/k of the population.    
 
 The after-operations perform the changes not on some explicit percentage of the selected segment, but after a certain time (in ticks). Depending on the after-type the distribution of the transition time can be modelled. There are currently three ways to express the distribution (other distributions can be added as needed):
 

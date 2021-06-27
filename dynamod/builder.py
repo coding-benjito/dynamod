@@ -272,7 +272,7 @@ class DynamodBuilder(DynamodVisitor):
 
     # Visit a parse tree produced by DynamodParser#restr_if.
     def visitRestr_if(self, ctx:DynamodParser.Restr_ifContext):
-        res = DynamodRestriction(ctx, 'if', self.visit(ctx.segment()), self.visit(ctx.progression_block()))
+        return DynamodRestriction(ctx, 'if', self.visit(ctx.condition()), self.visit(ctx.progression_block()))
 
 
     # Visit a parse tree produced by DynamodParser#progression_after.

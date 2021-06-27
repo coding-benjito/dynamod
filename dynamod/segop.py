@@ -6,7 +6,7 @@ class Segop:
         self.n = len(model.attSystem.attributes)
         self.change = [None for att in model.attSystem.attributes] if change is None else change.copy()
         self.seg = tuple(self.change) if seg is None else seg
-        self.share = 1 if share is None else share
+        self.share = share
 
     def set_value (self, iaxis, ivalue):
         on = self.seg[iaxis]
