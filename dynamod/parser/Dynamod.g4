@@ -258,7 +258,8 @@ formal_args:
 
 
 variable_definition:
-  VAR? NAME '=' pexpression
+  VAR? NAME op=('='|PLUSASS|MINUSASS|MULTASS|DIVASS) pexpression                  #vardef_simple
+  | base=NAME '.' key=NAME op=('='|PLUSASS|MINUSASS|MULTASS|DIVASS) pexpression   #vardef_dot
   ;
   
 expression:
@@ -364,7 +365,10 @@ GE : '>=';
 NE : '!=';
 EQ : '==';
 DOTDOT : '..';
-
+PLUSASS : '+=';
+MINUSASS : '-=';
+MULTASS : '*=';
+DIVASS : '/=';
 
 NEWLINE
  : ( {self.atStartOfInput()}?   SPACES

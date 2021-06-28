@@ -12,6 +12,7 @@ Dynamod - model specification reference
   - [results](#results)
   - [extends](#extends)
 - [Expressions](#expressions)
+- [Variables](#variables)  
 - [Grammar](#grammar)
 
 
@@ -156,7 +157,7 @@ Normal Python-like expressions are available in Dynamod:
 - numbers (`123, 12.3, 1.2E3, 12%`)
 - lists of expressions (`[a, b, ...]`)
 - accessing lists by index (`a[b]`)  
-- local variable definition (definition by assignment)
+- local variable assignment (see below)
 - object member access (`x.y`)
 - object method access (`x.y(…)`)
 - strings (limited by single or double quotes)
@@ -166,6 +167,7 @@ Normal Python-like expressions are available in Dynamod:
 Objects can be inserted into Dynamod's namespace when initializing the model. There are some predefined variables:
 
 - **ALL**: the total population, which is a starting point for population segments (see below)
+- **SEGMENT**: the current segment of the population inside a progression (see below)
 - **day** (or **time**): both refer to the iteration tick count, starting at 0
 - **random** will give a uniformly distributed random variable between 0 and 1
 - **PI** and **E** are the math constants
@@ -188,6 +190,7 @@ formulas:
 A special notation is available to describe population segments. There are several ways to do this:
 
 - the predefined variable `ALL` (the total population with no restrictions)
+- the predefined variable `SEGMENT` (the current population according to the current for/after context)
 - `attribute=value` (the population segment having the given value for the given attribute
 - `attribute in [value1, value2, …]` (the population segment having one of the listed values for the given attribute
 - if `X` is a population segment, `X with attribute=value` is another one (further restricting the segment)
@@ -202,7 +205,15 @@ Population segments are primarily used to calculate absolute or relative populat
 
 A further special notation with population segments is `X.attrib`, where attrib is the name of a model attribute. It returns the value index of the attribute within this population segment. If an attribute 'age' has values: [kid, adult, old], and X is a population segment, X.age can have the values 0, 1 or 2.
 
+## Variables
+<a name="variables"></a>
+Dynamod has three kinds of variables that can be used in progressions, expressions, formulas and results:
 
+- **local variables** are valid only inside the progression that defines them. Local variables can be written without any prefix (e.g. `my_varname`) or with an explicit prefix `local.my_varname`. A local variable without prefix cannot be used in an expression before being defined (i.e. assigned for the first time). Prefixed variables have the numeric value 0 before being assigned. 
+- **cycle variables** are valid throughout the iteration. They are automatically set to 0 when the iteration starts. They must begin with the prefix *cycle*, e.g. `cycle.my_variable`. If you split iterations into fractions using the `fractions` parameter during model initialization, cycle variables will be reset only once, before the first fraction is calculated. 
+- **global variables** are valid throughout the whole model run. They are automatically initialized to 0 when the model is run. They must begin with the prefix *global*, e.g. `global.my_variable`
+
+All types of variables can be assigned by `=` or changed by `+=`, `-=`, `*=` and `/=` in the usual way. 
 ## Grammar
 <a name="grammar"></a>
 The complete formal grammar for Dynamod models can be found [here](dynamod/parser/Dynamod.g4). 

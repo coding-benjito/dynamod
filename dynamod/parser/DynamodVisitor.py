@@ -279,8 +279,13 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by DynamodParser#variable_definition.
-    def visitVariable_definition(self, ctx:DynamodParser.Variable_definitionContext):
+    # Visit a parse tree produced by DynamodParser#vardef_simple.
+    def visitVardef_simple(self, ctx:DynamodParser.Vardef_simpleContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#vardef_dot.
+    def visitVardef_dot(self, ctx:DynamodParser.Vardef_dotContext):
         return self.visitChildren(ctx)
 
 

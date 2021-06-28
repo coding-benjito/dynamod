@@ -2,6 +2,7 @@ from dynamod.core import *
 from dynamod.context import *
 from dynamod.actionstack import Action
 from dynamod.partition import Partition
+from dynamod.flexdot import FlexDot
 
 class DynamodExpression:
     def __init__(self, model, ctx, name, expr):
@@ -52,21 +53,6 @@ class Evaluator:
         if opcode == '!=':
             return op1 != op2;
         raise ConfigurationError("unknown comparison operator: " + opcode)
-
-    def evalCalculation(self, opcode, op1, op2):
-        if opcode == '+':
-            return op1 + op2
-        if opcode == '-':
-            return op1 - op2;
-        if opcode == '*':
-            return op1 * op2
-        if opcode == '/':
-            if op2 == 0:
-                return op1
-            return op1 / op2;
-        if opcode == '**':
-            return op1 ** op2;
-        raise ConfigurationError("unknown calculation operator: " + opcode)
 
     def evalCond (self, expr):
         with Action(self.model, "evaluate condition", op=expr):
@@ -125,7 +111,7 @@ class Evaluator:
                     op1 = self.evalExpr(expr.op1)
                     op2 = self.evalExpr(expr.op2)
                     if is_num(op1) and is_num(op2):
-                        res = self.evalCalculation (expr.opcode, op1, op2)
+                        res = evalCalculation (expr.opcode, op1, op2)
                         if self.model.tracer is not None:
                             self.model.tracer.end(str(op1) + " " + expr.opcode + " " + str(op2) + " = " + str(res))
                         return res
@@ -141,6 +127,8 @@ class Evaluator:
                     if isinstance(op1, Partition):
                         att = self.model.attribute(expr.op2)
                         return op1.onseg.get_value(att.index)
+                    if isinstance(op1, FlexDot):
+                        return op1.get(expr.op2)
                     if hasattr(op1, expr.op2):
                         return getattr(op1, expr.op2)
                     raise ConfigurationError("unknown field " + expr.op2, expr.ctx)
@@ -168,11 +156,11 @@ class Evaluator:
                     if expr.op2 is not None:
                         base = self.evalExpr(expr.op2)
                         if not isinstance(base, Partition):
-                            raise ConfigurationError("base of [...|...] must be a partition", expr.ctx)
+                            raise ConfigurationError("base of $(...|...) must be a partition", expr.ctx)
                         self.context.values.put('_SHARE_BASE', base)
                     part = self.evalExpr(expr.op1)
                     if not isinstance(part, Partition):
-                        raise ConfigurationError("expression in [...] must be a partition", expr.ctx)
+                        raise ConfigurationError("expression in $(...) must be a partition", expr.ctx)
                     if expr.op2 is not None:
                         self.context.values.delete('_SHARE_BASE')
                     share = part.total()

@@ -106,6 +106,23 @@ def insert_at (map:dict, key, value, at):
         res[key] = value
     return res
 
+
+def evalCalculation(opcode, op1, op2):
+    if opcode == '+':
+        return op1 + op2
+    if opcode == '-':
+        return op1 - op2;
+    if opcode == '*':
+        return op1 * op2
+    if opcode == '/':
+        if op2 == 0:
+            return op1
+        return op1 / op2;
+    if opcode == '**':
+        return op1 ** op2;
+    raise ConfigurationError("unknown calculation operator: " + opcode)
+
+
 class MissingAxis(Exception):
     def __init__(self, axis):
         self.axis = axis
@@ -141,7 +158,7 @@ DynamodAttrib = recordtype('DynamodAttrib', ['values', 'shares'])
 DynamodAxisValue  = recordtype('DynamodAxisValue', ['ctx', 'axis', 'value'])
 DynamodFormula  = recordtype('DynamodFormula', ['ctx', 'name', 'args', 'expr'])
 DynamodElseList = recordtype('DynamodElseList', ['ctx', 'list', 'otherwise'])
-DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'expression'])
+DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'key', 'op', 'expression'])
 DynamodAfter = recordtype('DynamodAfter', ['ctx', 'distrib', 'args', 'block', 'key'])
 DynamodAction = recordtype('DynamodAction', ['ctx', 'axis', 'state'])
 DynamodRestriction = recordtype('DynamodRestriction', ['ctx', 'type', 'cond', 'block', ('alias',None)])

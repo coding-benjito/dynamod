@@ -320,9 +320,14 @@ class DynamodBuilder(DynamodVisitor):
             list.append (entry.text)
         return list
 
-    # Visit a parse tree produced by DynamodParser#variable_definition.
-    def visitVariable_definition(self, ctx:DynamodParser.Variable_definitionContext):
-        return DynamodVarDef(ctx, ctx.NAME().getText(), self.visit(ctx.pexpression()))
+    # Visit a parse tree produced by DynamodParser#vardef_simple.
+    def visitVardef_simple(self, ctx:DynamodParser.Vardef_simpleContext):
+        return DynamodVarDef(ctx, ctx.NAME().getText(), None, ctx.op.text, self.visit(ctx.pexpression()))
+
+    # Visit a parse tree produced by DynamodParser#vardef_dot.
+    def visitVardef_dot(self, ctx:DynamodParser.Vardef_dotContext):
+        return DynamodVarDef(ctx, ctx.base.text, ctx.key.text, ctx.op.text, self.visit(ctx.pexpression()))
+
 
     # Visit a parse tree produced by DynamodParser#expr_ifelse.
     def visitExpr_ifelse(self, ctx:DynamodParser.Expr_ifelseContext):

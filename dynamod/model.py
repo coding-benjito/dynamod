@@ -30,6 +30,9 @@ class DynaModel:
         self.tracer = None
         self.builtin = BuiltinFunctions(self)
         self.fractions = 1
+        self.flexGlobal = FlexDot()
+        self.flexCycle = FlexDot()
+        self.flexLocal = FlexDot()
 
     def initialize(self, parameters=None, objects=None, fractions=1):
         try:
@@ -54,9 +57,11 @@ class DynaModel:
                 self.history.store()
                 self.simulate = True
                 self.fractions = 1
+                self.flexGlobal.clear()
                 self.step()
                 self.fractions = fractions
                 self.simulate = False
+                self.flexGlobal.clear()
 
         except Exception as e:
             if self.raw_errors:
@@ -150,6 +155,7 @@ class DynaModel:
 
     def _step(self):
         self.init_step()
+        self.flexCycle.clear()
         for _ in range(self.fractions):
             self.baseStore.clear_cache()
             for name, prog in self.progressions.items():
@@ -196,6 +202,7 @@ class DynaModel:
 
     def enter_local_context(self):
         self.context.values = self.context.values.extended()
+        self.flexLocal.clear()
 
     def leave_local_context(self):
         self.context.values = self.context.values.base
@@ -312,7 +319,20 @@ class DynaModel:
         return onsegs
 
     def perform_vardef (self, op:DynamodVarDef, onseg:Segop):
-        self.context.values.put(op.varname, self.evalExpr(op.expression, onseg))
+        value = self.evalExpr(op.expression, onseg)
+        if op.key is None:
+            if op.op != '=':
+                pvalue = self.context.values.get(op.varname)
+                value = evalCalculation(op.op[:1], pvalue, value)
+            self.context.values.put(op.varname, value)
+        else:
+            base = self.context.values.get(op.varname)
+            if base is None or not isinstance(base, FlexDot):
+                raise ConfigurationError("unknown base " + op.varname)
+            if op.op != '=':
+                pvalue = base.get(op.key)
+                value = evalCalculation(op.op[:1], pvalue, value)
+            base.put(op.key, value)
 
     def perform_restrictions (self, op:DynamodElseList, onseg):
         onsegs = []
@@ -611,7 +631,8 @@ class ConditionalShareValue(ConditionalShares):
 class GlobalStore(ImmutableMapStore):
     def __init__(self, model):
         self.model = model
-        self.here = {'ALL': self.all, 'day': self.tick, 'time': self.tick, 'random': self.random, 'PI': math.pi, 'E': math.e}
+        self.here = {'ALL': self.all, 'SEGMENT': self.current, 'day': self.tick, 'time': self.tick, 'random': self.random, 'PI': math.pi, 'E': math.e,
+                     'global': model.flexGlobal, 'cycle': model.flexCycle, 'local': model.flexLocal}
 
     def get(self, key):
         if key in self.here:
@@ -624,7 +645,7 @@ class GlobalStore(ImmutableMapStore):
         return self.model.full_partition()
 
     def current(self):
-        return self.model.context.segop
+        return Partition(self.model, self.model.context.onseg)
 
     def tick(self):
         return self.model.tick
