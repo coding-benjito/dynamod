@@ -56,11 +56,12 @@ class DynaModel:
                 self.history = History(self)
                 self.history.store()
                 self.simulate = True
-                self.fractions = 1
                 self.flexGlobal.clear()
+                self.fractions = 1
                 self.step()
-                self.fractions = fractions
                 self.simulate = False
+                self.fractions = fractions
+                self.distributions = {}
                 self.flexGlobal.clear()
 
         except Exception as e:
@@ -175,6 +176,7 @@ class DynaModel:
                         raise miss_axis
                     finally:
                         self.leave_local_context()
+            self.tickafter()
         if not self.simulate:
             self.close_step()
 
@@ -184,7 +186,7 @@ class DynaModel:
         else:
             splits = []
         try:
-            return self.perform_split_steps(prog, Segop(self, share=1/self.fractions), splits.copy())
+            return self.perform_split_steps(prog, Segop(self), splits.copy())
         except MissingAxis as miss_axis:
             splits.append(miss_axis.axis)
             self.tprint("add axis", miss_axis, "to", name)
@@ -222,9 +224,11 @@ class DynaModel:
             check_tickchange(self, self.tick)
         self.history.store()
 
-    def tickover(self):
+    def tickafter(self):
         for adist in self.distributions.values():
             adist.tickover()
+
+    def tickover(self):
         self.tick += 1
 
     def perform_steps(self, steps, onseg:Segop, alias=None):
@@ -294,7 +298,7 @@ class DynaModel:
     def apply_change(self, onseg):
         #key = onseg.as_key()
         for sout, sin in onseg.to_apply():
-            transfer = onseg.share * self.matrix[sout]
+            transfer = onseg.get_share() * self.matrix[sout]
             if transfer.sum() > 0:
                 if self.trace and self.trace_for is None:
                     self.tprint(short_str(sout) + "->" + short_str(sin) + ": " + str(transfer.sum()))
@@ -314,9 +318,13 @@ class DynaModel:
         return after.get_share()
 
     def perform_after (self, op:DynamodAfter, onseg):
+        if onseg.in_after:
+            raise ConfigurationError("cannot nest after() clauses")
         with Action(self, "perform after", op=op):
             prob = self.calc_after_share(op, onseg)
             both = onseg.split_on_prob(prob)
+            both[0].in_after = True
+            both[1].in_after = True
             onsegs = self.perform_steps(op.block, both[0])
             onsegs.append(both[1])
         return onsegs

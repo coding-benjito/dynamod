@@ -1,12 +1,13 @@
 from dynamod.core import *
 
 class Segop:
-    def __init__(self, model, seg=None, change=None, share=1):
+    def __init__(self, model, seg=None, change=None, share=1, in_after=False):
         self.model = model
         self.n = len(model.attSystem.attributes)
         self.change = [None for att in model.attSystem.attributes] if change is None else change.copy()
         self.seg = tuple(self.change) if seg is None else seg
         self.share = share
+        self.in_after = in_after
 
     def set_value (self, iaxis, ivalue):
         on = self.seg[iaxis]
@@ -53,12 +54,12 @@ class Segop:
         return self.seg[iaxis] == ivalue
 
     def modified_by_seg(self, seg):
-        return Segop(self.model, seg, self.change, self.share)
+        return Segop(self.model, seg, self.change, self.share, self.in_after)
 
     def split_on_prob(self, prob):
         splits = []
-        splits.append(Segop(self.model, self.seg, self.change, prob * self.share))
-        splits.append(Segop(self.model, self.seg, self.change, (1-prob) * self.share))
+        splits.append(Segop(self.model, self.seg, self.change, prob * self.share, self.in_after))
+        splits.append(Segop(self.model, self.seg, self.change, (1-prob) * self.share, self.in_after))
         return splits
 
     def split_on_att(self, iaxis, ivalue):
@@ -122,7 +123,7 @@ class Segop:
     def split_by_shares(self, iaxis, shares:dict):
         splits = []
         for ivalue, share in shares.items():
-            seg = Segop(self.model, self.seg, self.change, share * self.share)
+            seg = Segop(self.model, self.seg, self.change, share * self.share, self.in_after)
             if seg.needs_split(iaxis, ivalue):
                 segs = seg.split_on_axis(iaxis)
                 for sseg in segs:
@@ -173,12 +174,20 @@ class Segop:
         text += " do " + short_str(self.change)
         return text
 
+    def get_share(self):
+        s = self.share
+        if self.model.fractions > 1 and not self.in_after:
+            s /= self.model.fractions
+        return s
+
     def share_desc(self):
         from dynamod.partition import Partition
         return self.desc() + ": " + str(Partition(self.model, self).total())
 
     def desc(self):
         text = ""
+        if self.model.fractions > 1 and not self.in_after:
+            text += "1/" + str(self.model.fractions) + " fraction of "
         if self.share != 1:
             text += str(self.share) + " of "
         text += short_str(self.seg)

@@ -39,11 +39,12 @@ class AfterDistribution:
         r = self.calc_rfactor(self.timeshares)
         #build [xn, xn-1+xn, ... x1+x2+...+xn]
         factors = np.cumsum(self.timeshares[::-1])[::-1].tolist()
-        self.sections = [self.total * r * x for x in factors]
+        self.sections = [r * x for x in factors]
+        self.normalize()
 
     def get_timeshares(self):
         try:
-            return getattr(AfterDistribution, self.distmethod)(*self.argvals)
+            return getattr(AfterDistribution, self.distmethod)(self.model.fractions, *self.argvals)
         except Exception as e:
             raise ConfigurationError("error invoking distribution " + self.distmethod + ": " + str(e.args))
 
@@ -77,7 +78,7 @@ class AfterDistribution:
     def put_cached(self, key, res):
         self.cache[key] = res
 
-    def tickover (self):
+    def tickover (self):    #called after changes are applied to matrix. total is segment size before changes
         y = 0
         if self.incoming > 0:
             y = self.incoming / (self.total * (1 - self.sections[0]) + self.incoming)
@@ -90,33 +91,41 @@ class AfterDistribution:
         self.incoming = 0
 
     @staticmethod
-    def after_fix(delay):
+    def after_fix(fractions, delay):
         if delay <= 0:
             raise ValueError("after.fix delay must be positive")
         if delay < 1:
             delay = 1
+        delay *= fractions
         len = math.ceil(delay)
-        timeshares = [0 for i in range(len+1)]
         if len > delay:
+            timeshares = [0 for i in range(len + 1)]
             timeshares[-2] = len - delay
             rest = 1 + delay - len
             timeshares[-1] = rest
         else:
+            timeshares = [0 for i in range(len)]
             timeshares[-1] = 1
         #print ("after fix ", delay, " = ", timeshares)
         return timeshares
 
     @staticmethod
-    def after_explicit(*args):
+    def after_explicit(fractions, *args):
         from model import normalize_list
-        return normalize_list(*args, name="after.explicit attributes")
-
+        timeshares = normalize_list(*args, name="after.explicit attributes")
+        if fractions > 1:
+            extended = []
+            for s in timeshares:
+                for _ in range(fractions):
+                    extended.append(s/fractions)
+            return extended
+        return timeshares
 
     @staticmethod
-    def shares_from_cdf (cdf):
+    def shares_from_cdf (fractions, cdf):
         shares = []
         total = 0
-        upper = 0.5
+        upper = 1.5/fractions
         lower = None
         while total < 0.999:
             share = cdf(upper)
@@ -124,18 +133,18 @@ class AfterDistribution:
                 share -= cdf(lower)
             total += share
             shares.append (share)
-            upper += 1
-            lower = upper - 1
+            lower = upper
+            upper += 1/fractions
         shares[-1] += 1 - total
         return shares
 
     @staticmethod
-    def after_std (loc=0, scale=1):
+    def after_std (fractions, loc=0, scale=1):
         cdf = norm(loc, scale).cdf
-        return AfterDistribution.shares_from_cdf (cdf)
+        return AfterDistribution.shares_from_cdf (fractions, cdf)
 
     @staticmethod
-    def after_erlang (k, lmbda):
+    def after_erlang (fractions, k, lmbda):
         cdf = lambda x: erlang.cdf(x, a=k, scale=1/lmbda)
-        return AfterDistribution.shares_from_cdf (cdf)
+        return AfterDistribution.shares_from_cdf (fractions, cdf)
 

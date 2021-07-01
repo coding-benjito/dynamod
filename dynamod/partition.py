@@ -35,7 +35,7 @@ class Partition:
             matrix = self.model.matrix
         else:
             matrix = self.model.history.matrix[self.model.tick - self.tbefore]
-        return self.onseg.share * matrix[reslice(self.onseg.seg)].sum()
+        return self.onseg.get_share() * matrix[reslice(self.onseg.seg)].sum()
 
     def __str__(self):
         text = self.onseg.desc()
