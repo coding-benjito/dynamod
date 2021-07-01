@@ -30,9 +30,9 @@ class DynaModel:
         self.tracer = None
         self.builtin = BuiltinFunctions(self)
         self.fractions = 1
-        self.flexGlobal = FlexDot()
-        self.flexCycle = FlexDot()
-        self.flexLocal = FlexDot()
+        self.flexGlobal = FlexDot(self)
+        self.flexCycle = FlexDot(self, historize=True)
+        self.flexLocal = FlexDot(self)
 
     def initialize(self, parameters=None, objects=None, fractions=1):
         try:

@@ -4,7 +4,8 @@ import pandas as pd
 class History:
     def __init__(self, model):
         self.model = model
-        self.matrix = []
+        self.matrix = []    #matrix[0]= start of calculation, matrix[1]= result after tick 0
+        self.cycles = []    #cycles[0] = cacle vars after tick 0
         self.results = {}
         for name in self.model.results:
             self.results[name] = []
@@ -13,6 +14,8 @@ class History:
         self.matrix.append(self.model.matrix.copy())
         for name, expr in self.model.results.items():
             self.results[name].append (self.model.evalExpr(expr, Segop(self.model)))
+        if len(self.matrix) > 0:
+            self.cycles.append(self.model.flexCycle.copy())
 
     def get_attribute(self, axis, value, start=None, stop=None):
         segment = axval_segment(self.model, axis, value)

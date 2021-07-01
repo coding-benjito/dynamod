@@ -210,7 +210,7 @@ A further special notation with population segments is `X.attrib`, where attrib 
 Dynamod has three kinds of variables that can be used in progressions, expressions, formulas and results:
 
 - **local variables** are valid only inside the progression that defines them. Local variables can be written without any prefix (e.g. `my_varname`) or with an explicit prefix `local.my_varname`. A local variable without prefix cannot be used in an expression before being defined (i.e. assigned for the first time). Prefixed variables have the numeric value 0 before being assigned. 
-- **cycle variables** are valid throughout the iteration. They are automatically set to 0 when the iteration starts. They must begin with the prefix *cycle*, e.g. `cycle.my_variable`. If you split iterations into fractions using the `fractions` parameter during model initialization, cycle variables will be reset only once, before the first fraction is calculated. 
+- **cycle variables** are valid throughout the iteration. They are automatically set to 0 when the iteration starts. They must begin with the prefix *cycle*, e.g. `cycle.my_variable`. If you split iterations into fractions using the `fractions` parameter during model initialization, cycle variables will be reset only once, before the first fraction is calculated. You can access cycle variables of earlier cycles in expressions using `cycle.before(k).my_varname`  
 - **global variables** are valid throughout the whole model run. They are automatically initialized to 0 when the model is run. They must begin with the prefix *global*, e.g. `global.my_variable`
 
 All types of variables can be assigned by `=` or changed by `+=`, `-=`, `*=` and `/=` in the usual way. 

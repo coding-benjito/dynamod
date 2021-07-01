@@ -22,7 +22,12 @@ class Partition:
             if self.tbefore is not None:
                 tbefore += self.tbefore
             return Partition(self.model, self.onseg, tbefore)
-        raise ConfigurationError("argument of .tbefore() must be int")
+        raise ConfigurationError("argument of .before() must be int")
+
+    def of(self, t):
+        if not isinstance(t, int):
+            raise ConfigurationError("argument of .of() must be int")
+        return self.before(self.model.tick - t)
 
     def describe(self):
         text = str(self.onseg)
