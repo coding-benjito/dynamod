@@ -131,10 +131,11 @@ class DynaModel:
 
     def run(self, cycles, trace_at=None):
         for i in range(cycles):
-            if i == trace_at:
+            do_trace = (i == trace_at or isinstance(trace_at, list) and i in trace_at)
+            if do_trace:
                 self.tracer = Tracer()
             self.step()
-            if i == trace_at:
+            if do_trace:
                 self.tracer.finish()
                 self.tracer = None
 
@@ -154,6 +155,8 @@ class DynaModel:
             exit(1)
 
     def _step(self):
+        if self.tracer is not None:
+            self.tracer.line("***** tick " + str(self.tick) + " *****")
         self.init_step()
         self.flexCycle.clear()
         for _ in range(self.fractions):
@@ -375,7 +378,7 @@ class DynaModel:
                 else:
                     if len(axes) > 0:
                         raise ConfigurationError("cannot combine attribute and probability conditions")
-                    if len(onsegs) > 0:
+                    if len(onsegs) > 0 or len(op.list) > 1:
                         raise ConfigurationError("cannot chain probability conditions, must use 'otherwise'")
                     prob = self.evalExpr(restr.cond, onseg)
                     both = onseg.split_on_prob(prob)
@@ -565,9 +568,11 @@ class ShareSystem:
         if self.share_list is None:
             array = []
             for ax in self.att.values:
-                if ax not in self.share_map:
-                    raise ConfigurationError("value '" + ax + "' of attribute '" + self.att.name + "' has no defined share")
-                array.append(self.share_map[ax].build_share (ax, given))
+                if ax in self.share_map:
+                    array.append(self.share_map[ax].build_share (ax, given))
+                else:
+                    #raise ConfigurationError("value '" + ax + "' of attribute '" + self.att.name + "' has no defined share")
+                    array.append(0)
             return self.att.normalize_list(array)
         for sl in self.share_list:
             if sl.matches(given):

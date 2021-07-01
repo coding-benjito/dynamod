@@ -37,7 +37,7 @@ After a model has been run, you must repeat the initialization before running it
 
 ## Running the model
 
-`model.run(cycles, trace_at=None)` is used to calculate the model for the given number of iterations. To debug the model, set the `trace_at` parameter to the iteration number you want to analyze. During this iteration, the calculation details of all expressions will be output to the console. 
+`model.run(cycles, trace_at=None)` is used to calculate the model for the given number of iterations. To debug the model, set the `trace_at` parameter to the iteration number (or list of numbers) you want to analyze. During this iteration, the calculation details of all expressions will be output to the console. 
 
 ## Retrieving results
 
