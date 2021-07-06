@@ -79,6 +79,7 @@ Each progression tells Dynamod what to change and on which segment of the popula
 - conditional operation: `if <condition>: …`
 - the 'otherwise' restriction (if none of the above applies): `otherwise: …`
 - the after-operations: `after.xxx(..): …`
+- foreach loops: `foreach <loop-variable> in <list>: …`
 
 These building blocks can be nested to define fine-grained segments of the population where a certain change should occur. On the same level, however, you can only split the population along one single attribute. This last requirement guarantees that all segments within a single progression are mutually exclusive. Therefore, it is clear which operation will be applied to a given attribute combination.
 
@@ -162,9 +163,9 @@ Normal Python-like expressions are available in Dynamod:
 - object method access (`x.y(…)`)
 - strings (limited by single or double quotes)
 - access of local variables, parameters and formulas (by name)
-- Python-style conditional expressions: `<x> if <cond> else <y>`
+- conditional expressions: `if <cond> <x> else <y>`
 
-Objects can be inserted into Dynamod's namespace when initializing the model. There are some predefined variables:
+Objects can be inserted into Dynamod's namespace while initializing the model. There are some predefined variables:
 
 - **ALL**: the total population, which is a starting point for population segments (see below)
 - **SEGMENT**: the current segment of the population inside a progression (see below)
@@ -172,7 +173,7 @@ Objects can be inserted into Dynamod's namespace when initializing the model. Th
 - **random** will give a uniformly distributed random variable between 0 and 1
 - **PI** and **E** are the math constants
 
-A list of predefined functions is accessible as well: `min(), max(), abs(), ceil(), floor(), round(), sin(), cos(), tan()`
+A list of predefined functions is accessible as well: `min(), max(), abs(), ceil(), floor(), round(), sin(), cos(), tan(), print()`
 
 For top-level expressions like formulas or local variables, a split syntax over population attributes can be used:
 
@@ -196,14 +197,16 @@ A special notation is available to describe population segments. There are sever
 - if `X` is a population segment, `X with attribute=value` is another one (further restricting the segment)
 - if `X` is a population segment, `X with attribute in [value1, value2, …]` is another one (further restricting the segment)
 - if `X` is a population segment, `X.before(D)` is another one, denoting the population segment `D` days earlier. `D` must be an integer value. If `D` is greater than the current iteration count, `X` is returned
-- in segment restrictions and segment list restrictions (see above), the resulting restricted population segment can be given a name: `for X as attribute=value:...`
+- in segment restrictions and segment list restrictions (see above), the resulting restricted population segment can be given a name: `for X as attribute=value:…`
+- to create a list of segments by splitting a segment along the values of an attribute, you can use `foreach X in Y by <attrinbute>:…`
+- if you split on more than one attribute, the full cartesion product will be returned as a list: `foreach X in Y by [<attrib1>, <attrib2>, …]:…`
 
 Population segments are primarily used to calculate absolute or relative population shares. If `X` and `Y` are population segments,
 
 - `$(X)` returns the (absolute) share of segment `X` in the population
 - `$(X|Y)` returns the relative share of `X` within `Y`
 
-A further special notation with population segments is `X.attrib`, where attrib is the name of a model attribute. It returns the value index of the attribute within this population segment. If an attribute 'age' has values: [kid, adult, old], and X is a population segment, X.age can have the values 0, 1 or 2.
+A further special notation with population segments is `X.attrib`, where attrib is the name of a model attribute. It returns the value index of the attribute within this population segment. If an attribute 'age' has values: [kid, adult, old], and X is a population segment, X.age can have the values 0, 1 or 2. This can also be used in set-operations to change attribute values, e.g.: `set state=X.state`
 
 ## Variables
 <a name="variables"></a>

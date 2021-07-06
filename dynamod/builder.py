@@ -252,9 +252,17 @@ class DynamodBuilder(DynamodVisitor):
     def visitProg_after(self, ctx:DynamodParser.Prog_afterContext):
         return self.visit(ctx.progression_after())
 
+    # Visit a parse tree produced by DynamodParser#prog_iter.
+    def visitProg_iter(self, ctx:DynamodParser.Prog_iterContext):
+        return self.visit(ctx.progression_iteration())
+
     # Visit a parse tree produced by DynamodParser#prog_action.
     def visitProg_action(self, ctx:DynamodParser.Prog_actionContext):
         return self.visit(ctx.progression_action())
+
+    # Visit a parse tree produced by DynamodParser#prog_expr.
+    def visitProg_expr(self, ctx:DynamodParser.Prog_exprContext):
+        return DynamodVarDef(ctx, None, None, None, self.visit(ctx.expression()))
 
     # Visit a parse tree produced by DynamodParser#restr_for.
     def visitRestr_for(self, ctx:DynamodParser.Restr_forContext):
@@ -279,6 +287,10 @@ class DynamodBuilder(DynamodVisitor):
     def visitProgression_after(self, ctx:DynamodParser.Progression_afterContext):
         return DynamodAfter(ctx, ctx.NAME().getText(), self.visit(ctx.arguments()), self.visit(ctx.progression_block()), get_random_string(8))
 
+    # Visit a parse tree produced by DynamodParser#progression_iteration.
+    def visitProgression_iteration(self, ctx:DynamodParser.Progression_iterationContext):
+        return DynamodIteration(ctx, ctx.NAME().getText(), self.visit(ctx.expression()), self.visit(ctx.progression_block()))
+
     # Visit a parse tree produced by DynamodParser#progression_action.
     def visitProgression_action(self, ctx:DynamodParser.Progression_actionContext):
         return DynamodAction(ctx, ctx.NAME().getText(), self.visit(ctx.pstate()))
@@ -286,6 +298,10 @@ class DynamodBuilder(DynamodVisitor):
     # Visit a parse tree produced by DynamodParser#pstate_name.
     def visitPstate_name(self, ctx:DynamodParser.Pstate_nameContext):
         return ctx.NAME().getText()
+
+    # Visit a parse tree produced by DynamodParser#pstate_dot.
+    def visitPstate_dot(self, ctx:DynamodParser.Pstate_dotContext):
+        return BinaryOp(ctx, 'dot', self.visit(ctx.primary()), ctx.NAME().getText())
 
     # Visit a parse tree produced by DynamodParser#pstate_block.
     def visitPstate_block(self, ctx:DynamodParser.Pstate_blockContext):
@@ -464,6 +480,14 @@ class DynamodBuilder(DynamodVisitor):
     # Visit a parse tree produced by DynamodParser#primary_partition.
     def visitPrimary_partition(self, ctx:DynamodParser.Primary_partitionContext):
         return self.visit(ctx.partition())
+
+    # Visit a parse tree produced by DynamodParser#primary_partition_split.
+    def visitPrimary_partition_split(self, ctx:DynamodParser.Primary_partition_splitContext):
+        return BinaryOp(ctx, 'split', self.visit(ctx.partition()), [ctx.NAME().getText()])
+
+    # Visit a parse tree produced by DynamodParser#primary_partition_splits.
+    def visitPrimary_partition_splits(self, ctx:DynamodParser.Primary_partition_splitsContext):
+        return BinaryOp(ctx, 'split', self.visit(ctx.partition()), self.visit(ctx.values()))
 
     # Visit a parse tree produced by DynamodParser#primary_share.
     def visitPrimary_share(self, ctx:DynamodParser.Primary_shareContext):

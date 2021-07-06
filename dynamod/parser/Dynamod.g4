@@ -213,7 +213,9 @@ progression_statement:
   | restr+=restriction+ 
     (OTHERWISE ':' progression_block)?    #prog_restrictions
   | progression_after                     #prog_after
+  | progression_iteration                 #prog_iter
   | progression_action                    #prog_action
+  | expression NEWLINE                    #prog_expr
   ;
   
 restriction:
@@ -226,12 +228,17 @@ progression_after:
   AFTER '.' NAME OPEN_PAREN arguments CLOSE_PAREN ':' progression_block
   ;
   
+progression_iteration:
+  FOREACH NAME IN expression ':' progression_block
+  ;
+
 progression_action:
   SET NAME '=' pstate
   ;
 
 pstate:
   NAME NEWLINE                            #pstate_name
+  | primary '.' NAME NEWLINE              #pstate_dot
   | share_map_block                       #pstate_block
   ;
   
@@ -315,6 +322,8 @@ primary:
   | primary OPEN_BRACK expression CLOSE_BRACK           #primary_indexed
   | NAME                                                #primary_name
   | STRING                                              #primary_string
+  | partition BY NAME                                   #primary_partition_split
+  | partition BY values                                 #primary_partition_splits
   | partition                                           #primary_partition
   | '$' OPEN_PAREN partition CLOSE_PAREN                #primary_share
   | '$' OPEN_PAREN part=partition '|' base=partition CLOSE_PAREN      #primary_rel_share
@@ -345,6 +354,7 @@ VALUES : 'values';
 SHARES : 'shares';
 AT : 'at';
 FOR : 'for';
+FOREACH : 'foreach';
 IN : 'in';
 OTHERWISE : 'otherwise';
 VAR : 'var';

@@ -251,7 +251,9 @@ class DynaModel:
             if isinstance(op, DynamodElseList):
                 return self.perform_restrictions(op, onseg)
             elif isinstance(op, DynamodAfter):
-                return self.perform_after (op, onseg)
+                return self.perform_after(op, onseg)
+            elif isinstance(op, DynamodIteration):
+                return self.perform_iteration(op, onseg)
             elif isinstance(op, DynamodAction):
                 return self.perform_action (op, onseg)
             elif isinstance(op, DynamodVarDef):
@@ -266,12 +268,7 @@ class DynaModel:
             if self.tracer is not None:
                 self.tracer.line("set " + att.name + "=" + op.state)
             ivalue = att.indexof(op.state)
-            if onseg.needs_split(att.index, ivalue):
-                onsegs = onseg.split_on_att(att.index, ivalue)
-                onsegs[1].set_value(att.index, ivalue)
-                return onsegs
-            onseg.set_value(att.index, ivalue)
-            return [onseg]
+            return self.set_att_to_value(att, ivalue, onseg)
         elif isinstance(op.state, dict):
             shares = {}
             for state, share in op.state.items():
@@ -281,7 +278,18 @@ class DynaModel:
                 self.tracer.line("set " + att.name + "=" + str(shares))
             return onseg.split_by_shares(att.index, shares)
         else:
-            raise ConfigurationError("unknown state description: " + op.state, op.ctx)
+            ivalue = self.evalExpr(op.state, onseg)
+            return self.set_att_to_value(att, ivalue, onseg)
+
+    def set_att_to_value(self, att, ivalue, onseg):
+        if not isinstance(ivalue, int) or ivalue < 0 or ivalue >= len(att.values):
+            raise ConfigurationError("unknown state for attribute " + att.name + ": " + str(ivalue))
+        if onseg.needs_split(att.index, ivalue):
+            onsegs = onseg.split_on_att(att.index, ivalue)
+            onsegs[1].set_value(att.index, ivalue)
+            return onsegs
+        onseg.set_value(att.index, ivalue)
+        return [onseg]
 
     def apply_changes(self, onsegs):
         for seg in onsegs:
@@ -329,8 +337,26 @@ class DynaModel:
             onsegs.append(both[1])
         return onsegs
 
+    def perform_iteration (self, op:DynamodIteration, onseg):
+        from dynamod.splitsys import Splitsys
+        with Action(self, "perform loop", op=op):
+            mylist = self.evalExpr(op.list, onseg)
+            splitsys = Splitsys(self)
+            for item in mylist:
+                self.context.values.put(op.varname, item)
+                onsegs = self.perform_steps(op.block, onseg)
+                for segop in onsegs:
+                    #print("add segop ", segop)
+                    splitsys.add_segop(segop)
+        onsegs = splitsys.build_segops()
+        #for segop in onsegs:
+        #    print("results: ", segop)
+        return onsegs
+
     def perform_vardef (self, op:DynamodVarDef, onseg:Segop):
         value = self.evalExpr(op.expression, onseg)
+        if op.varname is None:
+            return
         if op.key is None:
             if op.op != '=':
                 pvalue = self.context.values.get(op.varname)
@@ -696,6 +722,9 @@ class BuiltinFunctions:
 
     def round(self, x):
         return round(x)
+
+    def print(self, *args):
+        print (*args)
 
 class FormulaStore(ImmutableMapStore):
     def __init__(self, model):

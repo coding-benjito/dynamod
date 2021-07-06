@@ -209,8 +209,18 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#prog_iter.
+    def visitProg_iter(self, ctx:DynamodParser.Prog_iterContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#prog_action.
     def visitProg_action(self, ctx:DynamodParser.Prog_actionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#prog_expr.
+    def visitProg_expr(self, ctx:DynamodParser.Prog_exprContext):
         return self.visitChildren(ctx)
 
 
@@ -234,6 +244,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#progression_iteration.
+    def visitProgression_iteration(self, ctx:DynamodParser.Progression_iterationContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#progression_action.
     def visitProgression_action(self, ctx:DynamodParser.Progression_actionContext):
         return self.visitChildren(ctx)
@@ -241,6 +256,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#pstate_name.
     def visitPstate_name(self, ctx:DynamodParser.Pstate_nameContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#pstate_dot.
+    def visitPstate_dot(self, ctx:DynamodParser.Pstate_dotContext):
         return self.visitChildren(ctx)
 
 
@@ -419,6 +439,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#primary_partition_splits.
+    def visitPrimary_partition_splits(self, ctx:DynamodParser.Primary_partition_splitsContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#primary_dot.
     def visitPrimary_dot(self, ctx:DynamodParser.Primary_dotContext):
         return self.visitChildren(ctx)
@@ -426,6 +451,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#primary_list.
     def visitPrimary_list(self, ctx:DynamodParser.Primary_listContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#primary_partition_split.
+    def visitPrimary_partition_split(self, ctx:DynamodParser.Primary_partition_splitContext):
         return self.visitChildren(ctx)
 
 

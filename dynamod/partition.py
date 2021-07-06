@@ -1,3 +1,5 @@
+import itertools
+
 from dynamod.afterdist import *
 
 class Partition:
@@ -48,3 +50,22 @@ class Partition:
             text += " (before " + str(self.tbefore) + ")"
         text += " " + str(self.total())
         return text
+
+    def splitter(self, attributes):
+        values = []
+        atts = []
+        for attname in attributes:
+            att = self.model.attribute(attname)
+            full = self.onseg.seg[att.index]
+            if full is None:
+                atts.append(att.index)
+                values.append(range(len(att.values)))
+            elif isinstance(full, list):
+                atts.append(att.index)
+                values.append(full)
+        cartesian = itertools.product(*values)
+        for combi in cartesian:
+            seg = self.onseg
+            for iatt, ivalue in zip(atts, combi):
+                seg = seg.restricted(iatt, ivalue)
+            yield Partition(self.model, seg, self.tbefore)

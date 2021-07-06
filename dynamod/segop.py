@@ -56,6 +56,13 @@ class Segop:
     def modified_by_seg(self, seg):
         return Segop(self.model, seg, self.change, self.share, self.in_after)
 
+    def copy(self):
+        return Segop(self.model, self.seg, self.change, self.share, self.in_after)
+
+    def restricted(self, iaxis, value):
+        seg = modified_seg(self.seg, iaxis, value)
+        return self.modified_by_seg(seg)
+
     def split_on_prob(self, prob):
         splits = []
         splits.append(Segop(self.model, self.seg, self.change, prob * self.share, self.in_after))
@@ -66,19 +73,19 @@ class Segop:
         splits = []
         on = self.seg[iaxis]
         if on is None:
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalue)))
+            splits.append(self.restricted (iaxis, ivalue))
             others = list(range(len(self.model.attSystem.attributes[iaxis].values)))
             others.remove(ivalue)
             if len(others) == 1:
                 others = others[0]
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, others)))
+            splits.append(self.restricted (iaxis, others))
         elif isinstance(on, list) and ivalue in on:
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalue)))
+            splits.append(self.restricted(iaxis, ivalue))
             others = on.copy()
             others.remove(ivalue)
             if len(others) == 1:
                 others = others[0]
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, others)))
+            splits.append(self.restricted(iaxis, others))
         else:
             raise EvaluationError("illegal attribute split")
         return splits
@@ -87,12 +94,12 @@ class Segop:
         splits = []
         on = self.seg[iaxis]
         if on is None:
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalues)))
+            splits.append(self.restricted(iaxis, ivalues))
             all = range(len(self.model.attSystem.attributes[iaxis].values))
             others = [x for x in all if x not in ivalues]
             if len(others) == 1:
                 others = others[0]
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, others)))
+            splits.append(self.restricted(iaxis, others))
         elif isinstance(on, list):
             these = [x for x in on if x in ivalues]
             others = [x for x in on if x not in ivalues]
@@ -100,13 +107,13 @@ class Segop:
                 others = others[0]
             if len(these) == 1:
                 these = these[0]
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, these)))
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, others)))
+            splits.append(self.restricted(iaxis, these))
+            splits.append(self.restricted(iaxis, others))
         else:
             if on in ivalues:
                 splits.append(self)
             else:
-                splits.append (self.modified_by_seg(modified_seg(self.seg, iaxis, [])))
+                splits.append (self.restricted(iaxis, []))
         return splits
 
     def split_on_axis(self, iaxis):
@@ -117,7 +124,7 @@ class Segop:
         elif isinstance(on, list):
             all = on
         for ivalue in all:
-            splits.append(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalue)))
+            splits.append(self.restricted(iaxis, ivalue))
         return splits
 
     def split_by_shares(self, iaxis, shares:dict):
@@ -160,7 +167,7 @@ class Segop:
         mylist = list_at.copy()
         iaxis = mylist.pop(0)
         for ivalue in self.seg[iaxis]:
-            reslist.extend(self.modified_by_seg(modified_seg(self.seg, iaxis, ivalue)).to_apply(mylist))
+            reslist.extend(self.restricted(iaxis, ivalue).to_apply(mylist))
         return reslist
 
     def as_key(self):

@@ -115,6 +115,8 @@ class Evaluator:
                         if self.model.tracer is not None:
                             self.model.tracer.end(str(op1) + " " + expr.opcode + " " + str(op2) + " = " + str(res))
                         return res
+                    if isinstance(op1, str) or isinstance(op2, str):
+                        return str(op1) + str(op2)
                     raise ConfigurationError("illegal calculation operands: " + str(op1) + expr.opcode + str(op2), expr.ctx)
                 if expr.opcode == 'func':
                     args = []
@@ -167,6 +169,11 @@ class Evaluator:
                     if share > 0 and expr.op2 is not None:
                         share /= base.total()
                     return share
+                if expr.opcode == 'split':
+                    part = self.evalExpr(expr.op1)
+                    if not isinstance(part, Partition):
+                        raise ConfigurationError("'by' operator can only be applied to partisions", expr.ctx)
+                    return part.splitter(expr.op2)
 
                 raise ConfigurationError("unknown expression operation(2): " + expr.opcode, expr.ctx)
 

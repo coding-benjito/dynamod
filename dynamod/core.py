@@ -13,7 +13,9 @@ def as_numlist (expr):
     if isinstance(expr, UnaryOp) and expr.opcode == 'list':
         for arg in expr.op:
             if not is_num(arg):
-                return None
+                arg = as_numlist(arg)
+                if arg is None:
+                    return None
             res.append(arg)
         return res
     return None
@@ -160,6 +162,7 @@ DynamodFormula  = recordtype('DynamodFormula', ['ctx', 'name', 'args', 'expr'])
 DynamodElseList = recordtype('DynamodElseList', ['ctx', 'list', 'otherwise'])
 DynamodVarDef = recordtype('DynamodVarDef', ['ctx', 'varname', 'key', 'op', 'expression'])
 DynamodAfter = recordtype('DynamodAfter', ['ctx', 'distrib', 'args', 'block', 'key'])
+DynamodIteration = recordtype('DynamodIteration', ['ctx', 'varname', 'list', 'block'])
 DynamodAction = recordtype('DynamodAction', ['ctx', 'axis', 'state'])
 DynamodRestriction = recordtype('DynamodRestriction', ['ctx', 'type', 'cond', 'block', ('alias',None)])
 DynamodCondExp = recordtype('DynamodCondExp', ['ctx', 'type', 'cond', 'expr'])
