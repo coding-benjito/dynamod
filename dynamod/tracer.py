@@ -36,7 +36,7 @@ class TraceItem:
 
     def print(self, indent):
         if len(self.childs) > 0:
-            print ("    " * indent + self.text + ":")
+            print ("    " * indent + str(self.text) + ":")
             for c in self.childs:
                 c.print(indent + 1)
             if self.res is not None:
@@ -44,4 +44,4 @@ class TraceItem:
         elif self.res is not None:
             print("    " * indent + self.text + " = " + self.res)
         else:
-            print("    " * indent + self.text)
+            print("    " * indent + str(self.text))

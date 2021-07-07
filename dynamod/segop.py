@@ -11,37 +11,40 @@ class Segop:
 
     def set_value (self, iaxis, ivalue):
         on = self.seg[iaxis]
-        if on is None or (isinstance(on, list) and ivalue in on):
+        if on is None or (listlike(on) and ivalue in on):
             raise EvaluationError("illegal attribute assignament")
         if ivalue != on:
             self.change[iaxis] = ivalue
 
     def needs_split (self, iaxis, ivalue):
         on = self.seg[iaxis]
-        return on is None or (isinstance(on, list) and ivalue in on)
+        return on is None or (listlike(on) and ivalue in on)
 
     def has_segment (self, iaxis, ivalue):
         on = self.seg[iaxis]
         if on == ivalue:
             return True
-        if on is None or isinstance(on, list):
+        if on is None or listlike(on):
             raise self.miss (iaxis)
         return False
 
     def get_value (self, iaxis):
         val = self.seg[iaxis]
-        if val is None or isinstance(val, list):
+        if val is None or listlike(val):
             raise self.miss (iaxis)
         return val
 
     def miss (self, iaxis):
-        return MissingAxis(self.model.attSystem.attributes[iaxis].name)
+        if self.model.missing_again:
+            return MissingSplit(self.model.attSystem.attributes[iaxis].name)
+        else:
+            return MissingAxis(self.model.attSystem.attributes[iaxis].name)
 
     def has_segments (self, iaxis, ivalues):
         on = self.seg[iaxis]
         if on is None:
             raise self.miss(iaxis)
-        if not isinstance(on, list):
+        if singlevar(on):
             return on in ivalues
         sect = set(ivalues) & set(on)
         if len(sect) == 0:
@@ -74,46 +77,35 @@ class Segop:
         on = self.seg[iaxis]
         if on is None:
             splits.append(self.restricted (iaxis, ivalue))
-            others = list(range(len(self.model.attSystem.attributes[iaxis].values)))
-            others.remove(ivalue)
-            if len(others) == 1:
-                others = others[0]
+            others = tuple_minus(range(len(self.model.attSystem.attributes[iaxis].values)), ivalue)
             splits.append(self.restricted (iaxis, others))
-        elif isinstance(on, list) and ivalue in on:
+        elif listlike(on) and ivalue in on:
             splits.append(self.restricted(iaxis, ivalue))
-            others = on.copy()
-            others.remove(ivalue)
-            if len(others) == 1:
-                others = others[0]
+            others = tuple_minus(on, ivalue)
             splits.append(self.restricted(iaxis, others))
+        elif singlevar(on) and ivalue == on:
+            splits.append(self)
         else:
-            raise EvaluationError("illegal attribute split")
+            splits.append(self.restricted(iaxis, tuple()))
         return splits
 
     def split_on_attlist(self, iaxis, ivalues):
         splits = []
         on = self.seg[iaxis]
         if on is None:
-            splits.append(self.restricted(iaxis, ivalues))
+            splits.append(self.restricted(iaxis, tuple(ivalues)))
             all = range(len(self.model.attSystem.attributes[iaxis].values))
-            others = [x for x in all if x not in ivalues]
-            if len(others) == 1:
-                others = others[0]
+            others = totuple([x for x in all if x not in ivalues])
             splits.append(self.restricted(iaxis, others))
-        elif isinstance(on, list):
-            these = [x for x in on if x in ivalues]
-            others = [x for x in on if x not in ivalues]
-            if len(others) == 1:
-                others = others[0]
-            if len(these) == 1:
-                these = these[0]
+        elif listlike(on):
+            these = totuple([x for x in on if x in ivalues])
+            others = totuple([x for x in on if x not in ivalues])
             splits.append(self.restricted(iaxis, these))
-            splits.append(self.restricted(iaxis, others))
+            if singlevar(others) or len(others) > 0:
+                splits.append(self.restricted(iaxis, others))
         else:
             if on in ivalues:
                 splits.append(self)
-            else:
-                splits.append (self.restricted(iaxis, []))
         return splits
 
     def split_on_axis(self, iaxis):
@@ -121,7 +113,7 @@ class Segop:
         on = self.seg[iaxis]
         if on is None:
             all = list(range(len(self.model.attSystem.attributes[iaxis].values)))
-        elif isinstance(on, list):
+        elif listlike(on):
             all = on
         for ivalue in all:
             splits.append(self.restricted(iaxis, ivalue))
@@ -160,7 +152,7 @@ class Segop:
     #return list of tuples sout, sin, split by lists in seg
     def to_apply(self, list_at=None):
         if list_at == None:
-            list_at = [i for i in range(self.n) if isinstance(self.seg[i], list) ]
+            list_at = [i for i in range(self.n) if listlike(self.seg[i]) ]
         if len(list_at) == 0:
             return [self.one_apply()]
         reslist = []
@@ -171,14 +163,14 @@ class Segop:
         return reslist
 
     def as_key(self):
-        return (tuple(tuple(x) if isinstance(x, list) else x for x in self.seg), tuple(self.change))
+        return (self.seg, tuple(self.change))
 
     def __str__(self):
         text = ""
         if self.share != 1:
             text += "for " + str(self.share) + " "
-        text += "on " + short_str(self.seg)
-        text += " do " + short_str(self.change)
+        text += "on " + long_str(self.model, self.seg)
+        text += " do " + long_str(self.model, self.change)
         return text
 
     def get_share(self):
@@ -197,5 +189,8 @@ class Segop:
             text += "1/" + str(self.model.fractions) + " fraction of "
         if self.share != 1:
             text += str(self.share) + " of "
-        text += short_str(self.seg)
+        text += long_str(self.model, self.seg)
         return text
+
+    def is_nop(self):
+        return self.change == self.model.all_none

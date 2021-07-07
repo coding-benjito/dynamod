@@ -27,7 +27,7 @@ class DynamodFunction:
 
     def evaluate(self, params, context:DynaContext):
         with Action(self.model, "evaluate function " + self.name, line=self.line):
-            if not isinstance(params, list) or len(params) != len(self.args):
+            if singlevar(params) or len(params) != len(self.args):
                 raise EvaluationError("failed to invoke '" + self.name + "', wrong number of arguments", self.srcfile, self.line)
             localCtx = MapStore()
             for n,v in zip(self.args, params):
@@ -116,6 +116,8 @@ class Evaluator:
                             self.model.tracer.end(str(op1) + " " + expr.opcode + " " + str(op2) + " = " + str(res))
                         return res
                     if isinstance(op1, str) or isinstance(op2, str):
+                        if self.model.tracer is not None:
+                            self.model.tracer.end(str(op1) + " " + expr.opcode + " " + str(op2) + " = " + str(res))
                         return str(op1) + str(op2)
                     raise ConfigurationError("illegal calculation operands: " + str(op1) + expr.opcode + str(op2), expr.ctx)
                 if expr.opcode == 'func':
@@ -149,7 +151,7 @@ class Evaluator:
                         if not isinstance(part, Partition):
                             raise ConfigurationError("base of with-operator must be a partition", expr.ctx)
                     axval = expr.op2
-                    if isinstance(axval.value, list):
+                    if listlike(axval.value):
                         value = [self.evalExpr(v) for v in axval.value]
                     else:
                         value = self.evalExpr(axval.value)
@@ -218,7 +220,7 @@ class Evaluator:
                     axis = cond_expr.cond.axis
                     att = self.model.attribute(axis)
                     value = cond_expr.cond.value
-                    if isinstance(value, list):
+                    if listlike(value):
                         values = [att.indexof(self.evalExpr(v)) for v in value]
                         if self.context.onseg.has_segments(att.index, values):
                             return self.evalExpr (cond_expr.expr)

@@ -10,7 +10,6 @@ class Splitsys:
         self.childs = None
         self.axis = None
         self.values = None
-        self.all_none = [None for i in range(self.n)]
 
     def copy(self):
         cp = Splitsys(self.model)
@@ -22,7 +21,7 @@ class Splitsys:
         return cp
 
     def add_segop(self, segop):
-        if segop.change == self.all_none:
+        if segop.is_nop():
             return
         self.add_for(segop.seg, segop.share, segop.change)
 
@@ -45,7 +44,7 @@ class Splitsys:
     def split_maybe(self, mask):
         if mask is None:
             return self, None
-        if not isinstance(mask, list):
+        if singlevar(mask):
             mask = [mask]
         both = [i for i in self.values if i in mask]
         rest = [i for i in self.values if i not in mask]
@@ -65,7 +64,7 @@ class Splitsys:
             if on is not None:
                 sub = base.copy()
                 others = base.copy()
-                if not isinstance(on, list):
+                if singlevar(on):
                     on = [on]
                 sub.values = on.copy()
                 att = self.model.attSystem.attributes[axis]

@@ -39,8 +39,25 @@ def deslice(org):
 def reslice(org):
     return tuple([NOSLICE if x is None else x for x in org])
 
+def listlike(var):
+    return isinstance(var, tuple) or isinstance(var, list)
+
+def singlevar(var):
+    return not listlike(var)
+
 def short_str (seg):
     return '[' + ','.join(':' if s is None or s is NOSLICE else str(s) for s in seg) + ']'
+
+def long_str(model, seg):
+    texts = []
+    for s, att in zip(seg, model.attSystem.attributes):
+        if s is None or s is NOSLICE:
+            texts.append(':')
+        elif listlike(s):
+            texts.append('(' + ','.join(att.values[i] for i in s) + ')')
+        else:
+            texts.append(att.values[s])
+    return '[' + ','.join(t for t in texts) + ']'
 
 def leads_into(seg, sout, sin):
     outside = False
@@ -49,10 +66,13 @@ def leads_into(seg, sout, sin):
         #       if one of ifrom/ito is NOSLICE, then the other one is NOSLICE too
         if ihere is not NOSLICE and ifrom is not NOSLICE:
             if ifrom == ito:
-                if ihere != ifrom:
+                if listlike(ihere):
+                    if ito not in ihere:
+                        return False  # doesn't lead in
+                elif ihere != ifrom:
                     return False    #doesn't lead in
             else:
-                if isinstance(ihere, list):
+                if listlike(ihere):
                     if ito not in ihere:
                         return False    #doesn't lead in
                     if ifrom not in ihere:
@@ -96,6 +116,14 @@ def axval_segment (model, axis, value):
 def modified_seg(seg, index, value):
     return tuple([value if i==index else seg[i] for i in range(len(seg))])
 
+def tuple_minus(tup, value):
+    return totuple([x for x in tup if x != value])
+
+def totuple(alist):
+    if len(alist) == 1:
+        return alist[0]
+    return tuple(alist)
+
 def insert_at (map:dict, key, value, at):
     res = OrderedDict()
     found = False
@@ -128,6 +156,11 @@ def evalCalculation(opcode, op1, op2):
 class MissingAxis(Exception):
     def __init__(self, axis):
         self.axis = axis
+
+class MissingSplit(Exception):
+    def __init__(self, axis):
+        self.axis = axis
+        self.message = "missing split along attribute " + axis
 
 class ConfigurationError(Exception):
     def __init__(self, message, ctx=None, line=None, column=None):

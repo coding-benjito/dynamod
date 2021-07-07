@@ -56,7 +56,7 @@ class Target:
     def get_error(self):
         result = self.model.get_result(self.resultname, self.start, self.stop)
         if self.type == 'values':
-            if isinstance(self.expected, list) or isinstance(self.expected, tuple):
+            if listlike(self.expected,):
                 expected = self.expected
             else:
                 try:

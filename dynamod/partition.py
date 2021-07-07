@@ -12,7 +12,7 @@ class Partition:
 
     def restricted(self, axis, value):
         att = self.model.attribute(axis)
-        if isinstance(value, list):
+        if listlike(value):
             ivalues = [att.indexof(v) for v in value]
             both = self.onseg.split_on_attlist(att.index, ivalues)
         else:
@@ -60,7 +60,7 @@ class Partition:
             if full is None:
                 atts.append(att.index)
                 values.append(range(len(att.values)))
-            elif isinstance(full, list):
+            elif listlike(full):
                 atts.append(att.index)
                 values.append(full)
         cartesian = itertools.product(*values)

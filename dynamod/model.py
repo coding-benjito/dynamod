@@ -22,6 +22,7 @@ class DynaModel:
         self.attDescs = OrderedDict()
         self.trace = False
         self.check = False
+        self.missing_again = False
         self.trace_for = None
         self.raw_errors = False
         self.simulate = False
@@ -132,7 +133,7 @@ class DynaModel:
 
     def run(self, cycles, trace_at=None):
         for i in range(cycles):
-            do_trace = (i == trace_at or isinstance(trace_at, list) and i in trace_at)
+            do_trace = (i == trace_at or listlike(trace_at) and i in trace_at)
             if do_trace:
                 self.tracer = Tracer()
             self.step()
@@ -188,6 +189,8 @@ class DynaModel:
         try:
             return self.perform_split_steps(prog, Segop(self), splits.copy())
         except MissingAxis as miss_axis:
+            if name in self.autosplits and self.autosplits[name] is not None and miss_axis.axis in self.autosplits[name]:
+                self.missing_again = True
             splits.append(miss_axis.axis)
             self.tprint("add axis", miss_axis, "to", name)
             self.autosplits[name] = splits
@@ -293,7 +296,7 @@ class DynaModel:
 
     def apply_changes(self, onsegs):
         for seg in onsegs:
-            if seg.change != self.all_none:
+            if not seg.is_nop():
                 self.apply_change(seg)
         self.matrix += (self.incoming - self.outgoing)
         self.incoming = np.zeros_like(self.matrix)
@@ -309,9 +312,9 @@ class DynaModel:
             transfer = onseg.get_share() * self.matrix[sout]
             if transfer.sum() > 0:
                 if self.trace and self.trace_for is None:
-                    self.tprint(short_str(sout) + "->" + short_str(sin) + ": " + str(transfer.sum()))
+                    self.tprint(long_str(self, sout) + "->" + long_str(self, sin) + ": " + str(transfer.sum()))
                 if self.tracer is not None:
-                    self.tracer.line(short_str(sout) + "->" + short_str(sin) + ": " + str(transfer.sum()))
+                    self.tracer.line(long_str(self, sout) + "->" + long_str(self, sin) + ": " + str(transfer.sum()))
                 self.outgoing[sout] += transfer
                 self.incoming[sin] += transfer
 
@@ -343,14 +346,20 @@ class DynaModel:
             mylist = self.evalExpr(op.list, onseg)
             splitsys = Splitsys(self)
             for item in mylist:
+                if self.tracer is not None:
+                    self.tracer.begin("loop " + op.varname + " = " + str(item))
                 self.context.values.put(op.varname, item)
                 onsegs = self.perform_steps(op.block, onseg)
                 for segop in onsegs:
                     #print("add segop ", segop)
                     splitsys.add_segop(segop)
+                if self.tracer is not None:
+                    self.tracer.end()
         onsegs = splitsys.build_segops()
-        #for segop in onsegs:
-        #    print("results: ", segop)
+        if self.tracer is not None:
+            for segop in onsegs:
+                if not segop.is_nop():
+                    self.tracer.line("results: " + str(segop))
         return onsegs
 
     def perform_vardef (self, op:DynamodVarDef, onseg:Segop):
@@ -389,7 +398,7 @@ class DynaModel:
                     if len(axes) > 1:
                         raise ConfigurationError("sequence of for-conditions must use same attribute")
                     value = axval.value
-                    if isinstance(value, list):
+                    if listlike(value):
                         axvalues.update(value)
                         for v in value:
                             ivalue = att.indexof(v)
@@ -581,7 +590,7 @@ class ShareSystem:
         self.share_list = None
         self.share_otherwise = None
         self.share_map = None
-        if isinstance(shares, list):
+        if listlike(shares):
             if len(shares) != len(att.values):
                 raise ConfigurationError("share list has wrong number of entries for attribute " + att.name)
             self.share_map = {}
@@ -629,7 +638,7 @@ class ConditionalShares:
     def matches (self, given:dict):
         if not self.axis in given:
             raise ConfigurationError("attribute value for '" + self.axis + "' not defined while evaluating shares of '" + self.att.name + "'")
-        if isinstance(self.value, list):
+        if listlike(self.value):
             return given[self.axis] in self.value
         return given[self.axis] == self.value
 
@@ -773,7 +782,7 @@ def parse_model (srcfile:str, model=None, trace=False):
     return model
 
 def get_total(matrix):
-    if isinstance(matrix, list):
+    if listlike(matrix):
         return sum([get_total(s) for s in matrix])
     return matrix
 
