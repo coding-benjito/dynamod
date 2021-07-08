@@ -115,6 +115,8 @@ class Segop:
             all = list(range(len(self.model.attSystem.attributes[iaxis].values)))
         elif listlike(on):
             all = on
+        else:
+            all = [on]
         for ivalue in all:
             splits.append(self.restricted(iaxis, ivalue))
         return splits

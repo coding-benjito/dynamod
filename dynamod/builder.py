@@ -38,6 +38,8 @@ def unwrap (text):
 def combine_list (first, second):
     reslist = []
     reslist.append(first)
+    if second is None:
+        return reslist
     if listlike(second):
         reslist.extend(second)
     elif second is not None:

@@ -133,6 +133,8 @@ class DynaModel:
 
     def run(self, cycles, trace_at=None):
         for i in range(cycles):
+            if trace_at is not None:
+                print("tick: ", self.tick)
             do_trace = (i == trace_at or listlike(trace_at) and i in trace_at)
             if do_trace:
                 self.tracer = Tracer()
@@ -351,7 +353,9 @@ class DynaModel:
                 self.context.values.put(op.varname, item)
                 onsegs = self.perform_steps(op.block, onseg)
                 for segop in onsegs:
-                    #print("add segop ", segop)
+                    if self.tracer is not None:
+                        if not segop.is_nop():
+                            self.tracer.line("add segop: " + str(segop))
                     splitsys.add_segop(segop)
                 if self.tracer is not None:
                     self.tracer.end()
@@ -433,6 +437,9 @@ class DynaModel:
                     return onsegs
 
         if op.otherwise is not None:
+            if len(axes) == 0: #otherwise of if-chain
+                onsegs.extend(self.perform_steps(op.otherwise, onseg))
+                return onsegs
             axis = axes.pop()
             others = set(self.attribute(axis).values) - axvalues
             ivalues = [att.indexof(v) for v in others]
@@ -590,7 +597,7 @@ class ShareSystem:
         self.share_list = None
         self.share_otherwise = None
         self.share_map = None
-        if listlike(shares):
+        if isinstance(shares, list):
             if len(shares) != len(att.values):
                 raise ConfigurationError("share list has wrong number of entries for attribute " + att.name)
             self.share_map = {}
