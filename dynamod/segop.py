@@ -1,13 +1,13 @@
 from dynamod.core import *
 
 class Segop:
-    def __init__(self, model, seg=None, change=None, share=1, in_after=False):
+    def __init__(self, model, seg=None, change=None, share=1, fractions=1):
         self.model = model
         self.n = len(model.attSystem.attributes)
         self.change = [None for att in model.attSystem.attributes] if change is None else change.copy()
         self.seg = tuple(self.change) if seg is None else seg
         self.share = share
-        self.in_after = in_after
+        self.fractions = fractions
 
     def set_value (self, iaxis, ivalue):
         on = self.seg[iaxis]
@@ -57,10 +57,10 @@ class Segop:
         return self.seg[iaxis] == ivalue
 
     def modified_by_seg(self, seg):
-        return Segop(self.model, seg, self.change, self.share, self.in_after)
+        return Segop(self.model, seg, self.change, self.share, self.fractions)
 
     def copy(self):
-        return Segop(self.model, self.seg, self.change, self.share, self.in_after)
+        return Segop(self.model, self.seg, self.change, self.share, self.fractions)
 
     def restricted(self, iaxis, value):
         seg = modified_seg(self.seg, iaxis, value)
@@ -68,8 +68,8 @@ class Segop:
 
     def split_on_prob(self, prob):
         splits = []
-        splits.append(Segop(self.model, self.seg, self.change, prob * self.share, self.in_after))
-        splits.append(Segop(self.model, self.seg, self.change, (1-prob) * self.share, self.in_after))
+        splits.append(Segop(self.model, self.seg, self.change, prob * self.share, self.fractions))
+        splits.append(Segop(self.model, self.seg, self.change, (1-prob) * self.share, self.fractions))
         return splits
 
     def split_on_att(self, iaxis, ivalue):
@@ -124,7 +124,7 @@ class Segop:
     def split_by_shares(self, iaxis, shares:dict):
         splits = []
         for ivalue, share in shares.items():
-            seg = Segop(self.model, self.seg, self.change, share * self.share, self.in_after)
+            seg = Segop(self.model, self.seg, self.change, share * self.share, self.fractions)
             if seg.needs_split(iaxis, ivalue):
                 segs = seg.split_on_axis(iaxis)
                 for sseg in segs:
@@ -177,8 +177,8 @@ class Segop:
 
     def get_share(self):
         s = self.share
-        if self.model.fractions > 1 and not self.in_after:
-            s /= self.model.fractions
+        if self.fractions > 1:
+            s /= self.fractions
         return s
 
     def share_desc(self):
@@ -187,8 +187,8 @@ class Segop:
 
     def desc(self):
         text = ""
-        if self.model.fractions > 1 and not self.in_after:
-            text += "1/" + str(self.model.fractions) + " fraction of "
+        if self.fractions > 1:
+            text += "1/" + str(self.fractions) + " fraction of "
         if self.share != 1:
             text += str(self.share) + " of "
         text += long_str(self.model, self.seg)

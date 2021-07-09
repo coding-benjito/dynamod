@@ -189,7 +189,7 @@ class DynaModel:
         else:
             splits = []
         try:
-            return self.perform_split_steps(prog, Segop(self), splits.copy())
+            return self.perform_split_steps(prog, Segop(self, fractions=self.fractions), splits.copy())
         except MissingAxis as miss_axis:
             if name in self.autosplits and self.autosplits[name] is not None and miss_axis.axis in self.autosplits[name]:
                 self.missing_again = True
@@ -331,13 +331,13 @@ class DynaModel:
         return after.get_share()
 
     def perform_after (self, op:DynamodAfter, onseg):
-        if onseg.in_after:
-            raise ConfigurationError("cannot nest after() clauses")
         with Action(self, "perform after", op=op):
             prob = self.calc_after_share(op, onseg)
             both = onseg.split_on_prob(prob)
-            both[0].in_after = True
-            both[1].in_after = True
+            both[0].fractions = 1
+            p = max(1/self.fractions - prob, 0)
+            both[1].fractions = 1
+            both[1].share = onseg.share * p
             onsegs = self.perform_steps(op.block, both[0])
             onsegs.append(both[1])
         return onsegs
