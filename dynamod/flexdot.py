@@ -1,10 +1,10 @@
 from dynamod.core import ConfigurationError
 
 class FlexDot:
-    def __init__(self, model, historize=False):
+    def __init__(self, model):
         self.model = model
         self.data = {}
-        self.historize = historize
+        self.historic = None
 
     def clear(self):
         self.data = {}
@@ -30,7 +30,7 @@ class FlexDot:
     def of(self, t):
         if not isinstance(t, int):
             raise ConfigurationError("argument of .of() must be int")
-        if not self.historize:
+        if self.historic is None:
             raise ConfigurationError(".before()/.of() not supported for this object")
         if t < 0:
             return FlexDot(self.model)    #empty values
@@ -38,4 +38,4 @@ class FlexDot:
             raise ConfigurationError(".before()/.of() accesses future values")
         if t == self.model.tick:
             return self
-        return self.model.history.cycles[t]
+        return self.historic[t]

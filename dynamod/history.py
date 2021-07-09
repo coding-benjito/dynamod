@@ -2,10 +2,13 @@ from dynamod.segop import *
 import pandas as pd
 
 class History:
-    def __init__(self, model):
+    def __init__(self, model, flexCycle, flexGlobal):
         self.model = model
         self.matrix = []    #matrix[0]= start of calculation, matrix[1]= result after tick 0
-        self.cycles = []    #cycles[0] = cacle vars after tick 0
+        self.cycles = []    #cycles[0] = cycle vars after tick 0
+        flexCycle.historic = self.cycles
+        self.globals = []    #global[0] = global vars after tick 0
+        flexGlobal.historic = self.globals
         self.results = {}
         for name in self.model.results:
             self.results[name] = []
@@ -16,6 +19,7 @@ class History:
             self.results[name].append (self.model.evalExpr(expr, Segop(self.model)))
         if len(self.matrix) > 0:
             self.cycles.append(self.model.flexCycle.copy())
+            self.globals.append(self.model.flexGlobal.copy())
 
     def get_attribute(self, axis, value, start=None, stop=None):
         segment = axval_segment(self.model, axis, value)

@@ -32,7 +32,7 @@ class DynaModel:
         self.builtin = BuiltinFunctions(self)
         self.fractions = 1
         self.flexGlobal = FlexDot(self)
-        self.flexCycle = FlexDot(self, historize=True)
+        self.flexCycle = FlexDot(self)
         self.flexLocal = FlexDot(self)
 
     def initialize(self, parameters=None, objects=None, fractions=1):
@@ -54,7 +54,7 @@ class DynaModel:
                 self.outgoing = np.zeros_like(self.matrix)
                 self.tick = 0
                 self.distributions = {}
-                self.history = History(self)
+                self.history = History(self, self.flexCycle, self.flexGlobal)
                 self.history.store()
                 self.simulate = True
                 self.flexGlobal.clear()

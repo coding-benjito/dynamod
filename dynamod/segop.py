@@ -195,4 +195,4 @@ class Segop:
         return text
 
     def is_nop(self):
-        return self.change == self.model.all_none
+        return self.share == 0 or self.change == self.model.all_none

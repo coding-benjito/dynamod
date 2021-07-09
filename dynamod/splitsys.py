@@ -23,16 +23,21 @@ class Splitsys:
         return cp
 
     def set_childs(self, childs):
-        self.childs = childs
+        n = len(self.model.attSystem.attributes[self.axis].values)
         self.childmap = {}
         for c in childs:
             v = c.values
             if listlike(v):
                 if len(v) == 1:
                     v = v[0]
+                    n -= 1
                 else:
                     v = tuple(v)
+                    n -= len(v)
             self.childmap[v] = c
+        if n != 0:
+            raise ConfigurationError("corrupt split system")
+        self.childs = childs
 
     def add_segop(self, segop):
         if segop.is_nop():
@@ -79,8 +84,9 @@ class Splitsys:
             return None, self
         other = self.copy()
         other.values = rest
-        self.values = both
-        return self, other
+        toapply = self.copy()
+        toapply.values = both
+        return toapply, other
 
     def apply(self, seg, share, change):
         base = self
@@ -96,8 +102,8 @@ class Splitsys:
                 others.values = [i for i in range(len(att.values)) if i not in on]
                 base.share = 1
                 base.changes = None
-                base.set_childs([sub, others])
                 base.axis = axis
+                base.set_childs([sub, others])
                 base = sub
         for i in range(len(base.changes)):
             (p, pchange) = base.changes[i]
