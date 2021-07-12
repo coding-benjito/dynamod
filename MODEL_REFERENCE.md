@@ -10,7 +10,7 @@ Dynamod - model specification reference
   - [parameters](#parameters)
   - [formulas](#formulas)
   - [results](#results)
-  - [extends](#extends)
+  - [settings](#settings)
 - [Expressions](#expressions)
 - [Variables](#variables)  
 - [Grammar](#grammar)
@@ -102,7 +102,7 @@ progressions:
 
 Operations within a progression can be considered to be applied simultaneously: they don't interfere with each other since they operate on non-overlapping segments. On the other hand, different progressions are applied one after another in the sequence they are written in.
 
-Please note that this approach differs from solving a differential equation numerically, where all changes of iteration n+1 are applied simultaneously to the common result of iteration n. To emulate the differential equation approach, you can use the `fractions` parameter during model initialization. If you set `fractions` to an integer k > 1, dynamod will repeat the progressions of each iteration k times, but apply the progressions to just 1/k of the population.    
+Please note that this approach differs from solving a differential equation numerically, where all changes of iteration n+1 are applied simultaneously to the common result of iteration n. To emulate the differential equation approach, you can use the `fractions` parameter in the `settings` section or during model initialization. If you set `fractions` to an integer k > 1, dynamod will repeat the progressions of each iteration k times, but apply the progressions to just 1/k of the population.    
 
 The after-operations perform the changes not on some explicit percentage of the selected segment, but after a certain time (in ticks). Depending on the after-type the distribution of the transition time can be modelled. There are currently three ways to express the distribution (other distributions can be added as needed):
 
@@ -131,14 +131,17 @@ While local variables can be defined on the spot inside of progressions, the use
 The results section can contain any number of specific result values. Each result entry is calculated at each iteration and leads to a time series of result values. These results can later be retrieved as arrays (for a single result) or pandas DataFrames (for multiple results).
 The distribution of attribute values doesn't have to be listed in the results section. Time series for these distributions are automatically recorded and available after the model has run.
 
-##extends
-<a name="extends"></a>
-In Dynamod, models can be extended by other models. To extend a model, the extension line:
-```
-extends: '<base model path>'
-```   
+##settings
+<a name="settings"></a>
+This optional section can be used to set the following model properties:
+- **start**: if time ticks are days, you can specify a model start date, i.e. the date corresponding to day 0 of the calculation. If a start date is specified, you can use date constants of the form `yyyy-mm-dd` in expressions where integers are expected. Dynamod will replace the value by the integer difference between the specific date minus the model start date. Furthermore, the DataFrame objects returned as results will have a datetime index. 
+  Example to set the model start date: `start: 2020-03-30`
+- **fractions**: you can specify the fractions for incremental calculations (see above) at model initialization or in the settings section. Example: `fractions: 20`
+- **extends**: in Dynamod, models can be extended by other models, e.g. `extends: 'basemodel.mod'`. 
 
-must be the first line in the model description. Any named objects (attributes, progressions, parameters, formulas and results in the extension model are added to the base model, possibly replacing any existing object of the same name.
+###Model extension 
+If you want to extend a model, the `settings` section must be the first section in the model description file, and the `extends` entry must be the first entry in the `settings` section.
+
 Since the order of progressions is relevant (they are performed one after another), it is possible to insert a new progression at a specific point into the base model's progression list by using the notation:
 
 ```
@@ -162,8 +165,12 @@ Normal Python-like expressions are available in Dynamod:
 - object member access (`x.y`)
 - object method access (`x.y(…)`)
 - strings (limited by single or double quotes)
+
+In addition, the following notations are supported:
+
 - access of local variables, parameters and formulas (by name)
 - conditional expressions: `if <cond> <x> else <y>`
+- date constants with format `yyyy-mm-dd`, but only if the model start date is set in the `settings` section. Date constants will then be evaluated as the integer day difference between the date constant and the start date.
 
 Objects can be inserted into Dynamod's namespace while initializing the model. There are some predefined variables:
 
@@ -213,7 +220,7 @@ A further special notation with population segments is `X.attrib`, where attrib 
 Dynamod has three kinds of variables that can be used in progressions, expressions, formulas and results:
 
 - **local variables** are valid only inside the progression that defines them. Local variables can be written without any prefix (e.g. `my_varname`) or with an explicit prefix `local.my_varname`. A local variable without prefix cannot be used in an expression before being defined (i.e. assigned for the first time). Prefixed variables have the numeric value 0 before being assigned. 
-- **cycle variables** are valid throughout the iteration. They are automatically set to 0 when the iteration starts. They must begin with the prefix *cycle*, e.g. `cycle.my_variable`. If you split iterations into fractions using the `fractions` parameter during model initialization, cycle variables will be reset only once, before the first fraction is calculated. You can access cycle variables of earlier cycles in expressions using `cycle.before(k).my_varname`  
+- **cycle variables** are valid throughout the iteration. They are automatically set to 0 when the iteration starts. They must begin with the prefix *cycle*, e.g. `cycle.my_variable`. If you split iterations into fractions using the `fractions` parameter in the `settings` section or during model initialization, cycle variables will be reset only once, before the first fraction is calculated. You can access cycle variables of earlier cycles in expressions using `cycle.before(k).my_varname`  
 - **global variables** are valid throughout the whole model run. They are automatically initialized to 0 when the model is run. They must begin with the prefix *global*, e.g. `global.my_variable`
 
 All types of variables can be assigned by `=` or changed by `+=`, `-=`, `*=` and `/=` in the usual way. 

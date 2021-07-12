@@ -91,6 +91,10 @@ class DynamodBuilder(DynamodVisitor):
     def visitModel_inc(self, ctx:DynamodParser.Model_incContext):
         self.model.include (unwrap(ctx.STRING().getText()))
 
+    # Visit a parse tree produced by DynamodParser#model_settings.
+    def visitModel_settings(self, ctx:DynamodParser.Model_settingsContext):
+        return self.visit(ctx.settings())
+
     # Visit a parse tree produced by DynamodParser#model_pars.
     def visitModel_pars(self, ctx:DynamodParser.Model_parsContext):
         return self.visit(ctx.parameters())
@@ -110,6 +114,20 @@ class DynamodBuilder(DynamodVisitor):
     # Visit a parse tree produced by DynamodParser#model_results.
     def visitModel_results(self, ctx:DynamodParser.Model_resultsContext):
         return self.visit(ctx.results())
+
+    # Visit a parse tree produced by DynamodParser#settings.
+    def visitSettings(self, ctx:DynamodParser.SettingsContext):
+        self.visit(ctx.setting())
+        self.visit(ctx.settings())
+
+    # Visit a parse tree produced by DynamodParser#setting_expr.
+    def visitSetting_expr(self, ctx:DynamodParser.Setting_exprContext):
+        self.model.addSetting (ctx, ctx.NAME().getText(), self.visit(ctx.expression()))
+
+
+    # Visit a parse tree produced by DynamodParser#setting_extends.
+    def visitSetting_extends(self, ctx:DynamodParser.Setting_extendsContext):
+        self.model.addSetting (ctx, 'extends', unwrap(ctx.STRING().getText()))
 
     # Visit a parse tree produced by DynamodParser#parameters.
     def visitParameters(self, ctx:DynamodParser.ParametersContext):
@@ -439,6 +457,10 @@ class DynamodBuilder(DynamodVisitor):
             return to_number(ctx.NUMBER().getText())
         except ValueError:
             raise ConfigurationError("illegal number format: " + ctx.NUMBER().getText(), ctx.NUMBER())
+
+    # Visit a parse tree produced by DynamodParser#factor_date.
+    def visitFactor_date(self, ctx:DynamodParser.Factor_dateContext):
+        return UnaryOp(ctx, 'date', ctx.DATE().getText())
 
     # Visit a parse tree produced by DynamodParser#factor_percent.
     def visitFactor_percent(self, ctx:DynamodParser.Factor_percentContext):

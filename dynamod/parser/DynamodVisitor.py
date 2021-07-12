@@ -19,6 +19,11 @@ class DynamodVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by DynamodParser#model_settings.
+    def visitModel_settings(self, ctx:DynamodParser.Model_settingsContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by DynamodParser#model_pars.
     def visitModel_pars(self, ctx:DynamodParser.Model_parsContext):
         return self.visitChildren(ctx)
@@ -51,6 +56,21 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#parameters.
     def visitParameters(self, ctx:DynamodParser.ParametersContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#settings.
+    def visitSettings(self, ctx:DynamodParser.SettingsContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#setting_expr.
+    def visitSetting_expr(self, ctx:DynamodParser.Setting_exprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#setting_extends.
+    def visitSetting_extends(self, ctx:DynamodParser.Setting_extendsContext):
         return self.visitChildren(ctx)
 
 
@@ -406,6 +426,11 @@ class DynamodVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by DynamodParser#factor_expr.
     def visitFactor_expr(self, ctx:DynamodParser.Factor_exprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by DynamodParser#factor_date.
+    def visitFactor_date(self, ctx:DynamodParser.Factor_dateContext):
         return self.visitChildren(ctx)
 
 

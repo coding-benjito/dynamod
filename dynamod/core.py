@@ -2,6 +2,7 @@ from recordtype import recordtype
 from collections import OrderedDict
 import random
 import string
+import datetime
 
 NOSLICE = slice(None)
 
@@ -19,6 +20,18 @@ def as_numlist (expr):
             res.append(arg)
         return res
     return None
+
+def parse_date(txt):
+    return datetime.datetime.strptime(txt, "%Y-%m-%d").date()
+
+def get_date_day(txt, startDate, ctx):
+    try:
+        date = parse_date(txt)
+    except ValueError:
+        raise ConfigurationError("illegal date format: " + txt, ctx)
+    if startDate is None:
+       raise ConfigurationError("model start date not set", ctx)
+    return (date - startDate).days
 
 def get_line(ctx):
     if ctx is not None:

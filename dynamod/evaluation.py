@@ -102,6 +102,8 @@ class Evaluator:
                     raise ConfigurationError("unknown variable: " + expr.op, expr.ctx)
                 if expr.opcode == 'list':
                     return [self.evalExpr(x) for x in expr.op]
+                if expr.opcode == 'date':
+                    return get_date_day(expr.op, self.model.startDate, expr.ctx)
                 raise ConfigurationError("unknown expression type(1): " + expr.opcode, expr.ctx)
 
             if isinstance(expr, BinaryOp):

@@ -31,6 +31,7 @@ class DynaModel:
         self.tracer = None
         self.builtin = BuiltinFunctions(self)
         self.fractions = 1
+        self.startDate = None
         self.flexGlobal = FlexDot(self)
         self.flexCycle = FlexDot(self)
         self.flexLocal = FlexDot(self)
@@ -484,11 +485,32 @@ class DynaModel:
     def addParameter (self, ctx, name, expr):
         if is_num(expr):
             self.parameters[name] = expr
+        elif isinstance(expr, UnaryOp) and expr.opcode == 'date':
+            self.parameters[name] = get_date_day(expr.op, self.startDate, expr.ctx)
         else:
             res = as_numlist(expr)
             if res is None:
                 raise ConfigurationError("parameter '" + name + "' must be defined as a number or list of numbers")
             self.parameters[name] = res
+
+    def addSetting (self, ctx, name, expr):
+        if name == 'extends':
+            self.include (str(expr))
+        elif name == 'start':
+            if isinstance(expr, UnaryOp) and expr.opcode == 'date':
+                try:
+                    self.startDate = parse_date(expr.op)
+                except ValueError:
+                    raise ConfigurationError("illegal date format: " + expr.op, ctx=ctx)
+            else:
+                raise ConfigurationError("setting 'start' must have a date value (yyyy-mm-dd)")
+        elif name == 'fractions':
+            if isinstance(expr, int):
+                self.fractions = expr
+            else:
+                raise ConfigurationError("setting 'fractions' must have an integer value")
+        else:
+            raise ConfigurationError("unknown setting '" + name + "'")
 
     def addResult (self, ctx, name, expr):
         self.results[name] = DynamodExpression(self, ctx, name, expr)

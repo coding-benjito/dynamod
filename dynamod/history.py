@@ -1,5 +1,6 @@
 from dynamod.segop import *
 import pandas as pd
+import datetime
 
 class History:
     def __init__(self, model, flexCycle, flexGlobal):
@@ -29,7 +30,7 @@ class History:
         att = self.model.attSystem.attr_map[axis]
         axl = axis_exclude(self.model, axis)
         data = [m.sum(axis=axl) for m in self.matrix[slice(start,stop,None)]]
-        return pd.DataFrame(data, columns=att.values)
+        return self.datify(pd.DataFrame(data, columns=att.values), start)
 
     def get_result(self, name, start=None, stop=None):
         pair = name.split('=')
@@ -39,8 +40,17 @@ class History:
 
     def get_results(self, names, start=None, stop=None):
         data = {name:(self.get_result(name, start, stop)) for name in names}
-        return pd.DataFrame(data)
+        return self.datify(pd.DataFrame(data), start)
 
     def get_all_results(self, start=None, stop=None):
         data = {name:(hist[slice(start,stop,None)]) for (name,hist) in self.results.items()}
-        return pd.DataFrame(data)
+        return self.datify(pd.DataFrame(data), start)
+
+    def datify(self, df, start=None):
+        if self.model.startDate is None:
+            return df
+        t0 = self.model.startDate
+        if start != None:
+            t0 += datetime.timedelta(days=start)
+        df.index = pd.date_range(t0, periods=len(df), freq='D')
+        return df

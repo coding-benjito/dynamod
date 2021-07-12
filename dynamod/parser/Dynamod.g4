@@ -101,6 +101,7 @@ model:
   
 model_part:
   EXTENDS ':' STRING NEWLINE                          #model_inc
+  | SETTINGS ':' NEWLINE INDENT settings DEDENT       #model_settings
   | PARAMETERS ':' NEWLINE INDENT parameters DEDENT   #model_pars
   | ATTRIBUTES ':' NEWLINE INDENT attributes DEDENT   #model_attribs
   | FORMULAS ':' NEWLINE INDENT formulas DEDENT       #model_formulas
@@ -114,11 +115,20 @@ parameters:
   parameter parameters?
   ;
                  
+settings:
+  setting settings?
+  ;
+
+setting:
+  NAME ':' expression NEWLINE       #setting_expr
+  | EXTENDS ':' STRING NEWLINE      #setting_extends
+  ;
+
 parameter:
   NAME ':' expression NEWLINE
   ;
 
-attributes: 
+attributes:
   attribute attributes?
   ;
                  
@@ -309,6 +319,7 @@ factor:
   | '-' factor                            #factor_neg
   | primary                               #factor_primary
   | OPEN_PAREN expression CLOSE_PAREN     #factor_expr
+  | DATE                                  #factor_date
   | NUMBER                                #factor_number
   | NUMBER '%'                            #factor_percent
   | '%%'                                  #factor_rest
@@ -344,6 +355,7 @@ arguments:
 // lexer rules
 
 EXTENDS : 'extends';
+SETTINGS : 'settings';
 PARAMETERS : 'parameters';
 ATTRIBUTES : 'attributes';
 PROGRESSION: 'progressions';
@@ -430,6 +442,10 @@ STRING
  : '\'' ~[\\\r\n\f']* '\''
  | '"' ~[\\\r\n\f"]* '"'
  ;
+
+DATE
+  : DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT
+  ;
 
 NUMBER
  : INTEGER
