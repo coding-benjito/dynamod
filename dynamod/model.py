@@ -36,7 +36,7 @@ class DynaModel:
         self.flexCycle = FlexDot(self)
         self.flexLocal = FlexDot(self)
 
-    def initialize(self, parameters=None, objects=None, fractions=1):
+    def initialize(self, parameters=None, objects=None, fractions=None):
         try:
             with Action(self, "initializing model", line=False):
                 if parameters is not None:
@@ -62,7 +62,8 @@ class DynaModel:
                 self.fractions = 1
                 self.step()
                 self.simulate = False
-                self.fractions = fractions
+                if fractions is not None:
+                    self.fractions = fractions
                 self.distributions = {}
                 self.flexGlobal.clear()
 

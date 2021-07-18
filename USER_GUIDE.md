@@ -31,7 +31,7 @@ Should parsing fail, the parser will output a problem description and terminate.
 
 - `parameters`: a dictionary mapping parameter names to values, overriding the initial values in the model's `parameters:` section
 - `objects`: a dictionary mapping names to user supplied Python objects, which are inserted into the model's namespace and can be used in expressions
-- `fractions`: (default: 1) if set to an integer k > 1, each iteration is repeated k times, but applied to only 1/k of the population.  
+- `fractions`: (default: None) if set to an integer k > 1, each iteration is repeated k times, but applied to only 1/k of the population. This parameter overrides the fractions specified in the model's settings section 
 
 After a model has been run, you must repeat the initialization before running it again.
 
