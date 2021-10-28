@@ -754,10 +754,10 @@ class BuiltinFunctions:
         return math.sin(x)
 
     def cos(self, x):
-        return math.sin(x)
+        return math.cos(x)
 
     def tan(self, x):
-        return math.sin(x)
+        return math.tan(x)
 
     def round(self, x):
         return round(x)
